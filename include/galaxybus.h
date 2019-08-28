@@ -14,7 +14,7 @@
 typedef struct galaxybus_s galaxybus_t;
 
 // Set up
-galaxybus_t *galaxybus_init (int8_t uart, int8_t tx, int8_t rx, int8_t de, int8_t re, uint8_t address);
+galaxybus_t *galaxybus_init (int8_t uart, int8_t tx, int8_t rx, int8_t de, int8_t re, uint8_t slave);
 void *galaxybus_end (galaxybus_t *);
 
 // Low level messaging

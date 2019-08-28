@@ -10,30 +10,48 @@ static const char TAG[] = "galaxybus";
 #include <driver/gpio.h>
 
 #define	GROUP_TOUT 1
+#define MASTER 0x11
 
 struct galaxybus_s
 {
    int8_t uart;
+   uint8_t slave;
    uint8_t address;             // Us
    EventGroupHandle_t group;
+   uart_dev_t u;
+   uint8_t rx[64];
+   uint8_t rxlen;
+   uint8_t rxseq;
+   uint8_t rxbusy:1;
 };
 
-static int icount=0;;
+static int icount = 0;;
 
 void IRAM_ATTR
-int_handler (void *gp)
+rx_int (void *gp)
 {
    galaxybus_t *g = gp;
-   uart_clear_intr_status(g->uart,UART_RXFIFO_TOUT_INT_CLR);
-   xEventGroupSetBits (g->group, GROUP_TOUT);
+
+   uint16_t status = g->u.int_st.val;   // read UART interrupt Status
+   uint16_t i = 0,
+      rx_fifo_len = g->u.status.rxfifo_cnt;     // read number of bytes in UART buffer
+   uint8_t rxbuf[100];
+   while (rx_fifo_len)
+   {
+      rxbuf[i++] = g->u.fifo.rw_byte;   // read all bytes
+      rx_fifo_len--;
+   }
+
+   uart_clear_intr_status (g->uart, UART_RXFIFO_FULL_INT_CLR|UART_RXFIFO_TOUT_INT_CLR);
+   //xEventGroupSetBits (g->group, GROUP_TOUT);
    icount++;
 }
 
 // Set up
 galaxybus_t *
-galaxybus_init (int8_t uart, int8_t tx, int8_t rx, int8_t de, int8_t re, uint8_t address)
+galaxybus_init (int8_t uart, int8_t tx, int8_t rx, int8_t de, int8_t re, uint8_t slave)
 {
-   if (uart < 0 || tx < 0 || rx < 0 || de < 0 || tx == rx || tx == de || rx == de || tx == re || rx == re)
+   if (uart < 0 || uart > 2 || tx < 0 || rx < 0 || de < 0 || tx == rx || tx == de || rx == de || tx == re || rx == re)
       return NULL;
    if (!GPIO_IS_VALID_OUTPUT_GPIO (tx) || !GPIO_IS_VALID_GPIO (rx) || !GPIO_IS_VALID_OUTPUT_GPIO (de)
        || (re >= 0 && !GPIO_IS_VALID_OUTPUT_GPIO (re)))
@@ -47,6 +65,13 @@ galaxybus_init (int8_t uart, int8_t tx, int8_t rx, int8_t de, int8_t re, uint8_t
    if (!g)
       return g;
    memset (g, 0, sizeof (*g));
+   if (uart == 0)
+      g->u = UART0;
+   else if (uart == 1)
+      g->u = UART1;
+   else if (uart == 2)
+      g->u = UART2;
+   g->slave=slave;
    g->uart = uart;
    g->group = xEventGroupCreate ();
    // Init UART
@@ -66,8 +91,8 @@ galaxybus_init (int8_t uart, int8_t tx, int8_t rx, int8_t de, int8_t re, uint8_t
       free (g);
       return NULL;
    }
-   uart_isr_register (uart, int_handler, g, ESP_INTR_FLAG_IRAM, NULL);
-   uart_enable_intr_mask(uart,UART_RXFIFO_TOUT_INT_ENA);
+   uart_isr_free (uart);
+   uart_isr_register (uart, rx_int, g, ESP_INTR_FLAG_IRAM, NULL);
    uart_enable_rx_intr (uart);
    ESP_LOGD (TAG, "PN532 UART %d Tx %d Rx %d", uart, tx, rx);
    return g;
@@ -106,8 +131,8 @@ galaxybus_rx (galaxybus_t * g, int max, uint8_t * buf)
 {
    if (!xEventGroupWaitBits (g->group, GROUP_TOUT, pdTRUE, pdTRUE, 100 / portTICK_PERIOD_MS))
    {
-      ESP_LOGI (TAG, "Rx Timeout (icount=%d)",icount);
-#if 0	// DoH
+      ESP_LOGI (TAG, "Rx Timeout (icount=%d)", icount);
+#if 0                           // DoH
       uart_flush (g->uart);
       return -1;
 #endif
