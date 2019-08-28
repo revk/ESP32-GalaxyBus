@@ -31,17 +31,17 @@ void IRAM_ATTR
 rx_int (void *gp)
 {
    galaxybus_t *g = gp;
-
+#if 0
    uint16_t status = g->u.int_st.val;   // read UART interrupt Status
    uint16_t i = 0,
       rx_fifo_len = g->u.status.rxfifo_cnt;     // read number of bytes in UART buffer
    uint8_t rxbuf[100];
    while (rx_fifo_len)
    {
-      rxbuf[i++] = g->u.fifo.rw_byte;   // read all bytes
+      rxbuf[i] = g->u.fifo.rw_byte;   // read all bytes
       rx_fifo_len--;
    }
-
+#endif
    uart_clear_intr_status (g->uart, UART_RXFIFO_FULL_INT_CLR|UART_RXFIFO_TOUT_INT_CLR);
    //xEventGroupSetBits (g->group, GROUP_TOUT);
    icount++;
@@ -71,6 +71,7 @@ galaxybus_init (int8_t uart, int8_t tx, int8_t rx, int8_t de, int8_t re, uint8_t
       g->u = UART1;
    else if (uart == 2)
       g->u = UART2;
+   else return NULL; // WTF
    g->slave=slave;
    g->uart = uart;
    g->group = xEventGroupCreate ();
@@ -91,7 +92,7 @@ galaxybus_init (int8_t uart, int8_t tx, int8_t rx, int8_t de, int8_t re, uint8_t
       free (g);
       return NULL;
    }
-   uart_isr_free (uart);
+   //uart_isr_free (uart);
    uart_isr_register (uart, rx_int, g, ESP_INTR_FLAG_IRAM, NULL);
    uart_enable_rx_intr (uart);
    ESP_LOGD (TAG, "PN532 UART %d Tx %d Rx %d", uart, tx, rx);
