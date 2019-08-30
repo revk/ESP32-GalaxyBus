@@ -175,6 +175,8 @@ timer_isr (void *gp)
             }
             if (g->txdue)
                rs485_mode_tx (g);       // Can start tx
+            else if (!g->slave)
+               gpio_set (g->de);        // Take bus anyway as we are master - saves it idling while task things about what to do next
          }
          return;
       }
@@ -300,7 +302,7 @@ galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t
    if (!g)
       return g;
    memset (g, 0, sizeof (*g));
-   g->txpre = 50;               // defaults
+   g->txpre = 2;               // defaults
    g->txpost = 2;
    g->gap = 10;
    g->de = de;
@@ -350,7 +352,7 @@ galaxybus_start (galaxybus_t * g)
    timer_set_counter_value (TIMER_GROUP_0, g->timer, 0x00000000ULL);
    timer_set_alarm_value (TIMER_GROUP_0, g->timer, TIMER_SCALE / 9600 / 3);
    timer_enable_intr (TIMER_GROUP_0, g->timer);
-   timer_isr_register (TIMER_GROUP_0, g->timer, timer_isr, g, ESP_INTR_FLAG_IRAM, NULL);
+   timer_isr_register (TIMER_GROUP_0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL3|ESP_INTR_FLAG_IRAM, NULL);
    timer_start (TIMER_GROUP_0, g->timer);
    xEventGroupSetBits (g->group, GROUP_TX_OK);
    xEventGroupSetBits (g->group, GROUP_RX_OK);
