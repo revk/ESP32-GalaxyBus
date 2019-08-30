@@ -49,7 +49,7 @@ struct galaxybus_s
    uint8_t tick:1;              // clk tick
 };
 
-#define TIMER_DIVIDER         16        //  Hardware timer clock divider
+#define TIMER_DIVIDER         4        //  Hardware timer clock divider
 #define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 
 #define	GROUP_RX_OK	1       // Rx is not busy
