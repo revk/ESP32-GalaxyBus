@@ -167,8 +167,9 @@ timer_isr (void *gp)
                if (g->slave)
                   g->txdue = 1; // Send reply as we are slave
                g->rxpos = 0;    // ready for next message
-               xEventGroupSetBits (g->group, GROUP_RX_READY);
-               xEventGroupSetBits (g->group, GROUP_RX_OK);
+               BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+               xEventGroupSetBitsFromISR (g->group, GROUP_RX_READY, &xHigherPriorityTaskWoken);
+               xEventGroupSetBitsFromISR (g->group, GROUP_RX_OK, &xHigherPriorityTaskWoken);
             }
             if (g->txdue)
                rs485_mode_tx (g);       // Can start tx
@@ -213,7 +214,9 @@ timer_isr (void *gp)
       if (g->rxignore)
          return;                // Not for us
       if (!g->rxpos)
-         xEventGroupClearBits (g->group, GROUP_RX_OK);
+      {
+         xEventGroupClearBitsFromISR (g->group, GROUP_RX_OK);
+      }
       // End of byte
       if (g->rxpos >= GALAXYBUSMAX)
          g->rxerr = GALAXYBUSTOOBIG;
@@ -235,7 +238,8 @@ timer_isr (void *gp)
          if (g->txpos)
          {                      // End of message
             g->txpos = 0;
-            xEventGroupSetBits (g->group, GROUP_TX_OK);
+            BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+            xEventGroupSetBitsFromISR (g->group, GROUP_TX_OK, &xHigherPriorityTaskWoken);
             rs485_mode_rx (g);  // Switch back to rx
             return;
          }
@@ -244,7 +248,7 @@ timer_isr (void *gp)
             g->txgap++;         // Wait, app is writing new message
          else
          {                      // Start sending
-            xEventGroupClearBits (g->group, GROUP_RX_OK);
+            xEventGroupClearBitsFromISR (g->group, GROUP_RX_OK);
             g->bit = 9;
             g->shift = g->txdata[g->txpos++];
          }
