@@ -110,6 +110,7 @@ rs485_mode_rx (galaxybus_t * g)
    if (g->tx == g->rx)
       gpio_in (g->rx);          // Input
    gpio_clr (g->de);
+   g->rxerr = 0;
    g->txrx = 1;                 // Rx mode
 }
 
@@ -163,6 +164,7 @@ timer_isr (void *gp)
                   g->rxerr = GALAXYBUSCHECKSUM;
                g->rxlen = g->rxpos;
                g->rxerrorreport = g->rxerr;
+               g->rxerr = 0;
                g->rxseq++;
                if (g->slave)
                   g->txdue = 1; // Send reply as we are slave
@@ -197,8 +199,6 @@ timer_isr (void *gp)
       if (!v)
          g->rxerr = (g->shift ? GALAXYBUSSTOPBIT : GALAXYBUSBREAK);     // Missing stop bit
       g->rxgap = g->gap;        // Look for end of message
-      if (!g->rxpos)
-         g->rxerr = 0;          // Clear errors, new message
       // Checksum logic
       if (!g->rxpos)
          g->rxsum = 0xAA;
@@ -210,7 +210,10 @@ timer_isr (void *gp)
          g->rxsum += l;
       }
       if (!g->rxpos && !g->shift)
+      {
+         g->rxerr = 0;
          return;                // Ignore zero leading
+      }
       if (!g->rxpos && g->shift != g->address && g->address != 0xFF && g->shift != 0xFF)
          g->rxignore = 1;       // Not addressed to us, ignore
       if (g->rxignore)
@@ -297,7 +300,7 @@ galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t
    if (!g)
       return g;
    memset (g, 0, sizeof (*g));
-   g->txpre = 2;                // defaults
+   g->txpre = 50;               // defaults
    g->txpost = 2;
    g->gap = 10;
    g->de = de;
