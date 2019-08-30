@@ -171,6 +171,7 @@ timer_isr (void *gp)
                g->rxpos = 0;    // ready for next message
                BaseType_t xHigherPriorityTaskWoken = pdFALSE;
                xEventGroupSetBitsFromISR (g->group, GROUP_RX_READY, &xHigherPriorityTaskWoken);
+               xHigherPriorityTaskWoken = pdFALSE;
                xEventGroupSetBitsFromISR (g->group, GROUP_RX_OK, &xHigherPriorityTaskWoken);
             }
             if (g->txdue)
@@ -346,15 +347,15 @@ galaxybus_start (galaxybus_t * g)
    config.alarm_en = TIMER_ALARM_EN;
    config.intr_type = TIMER_INTR_LEVEL;
    config.auto_reload = 1;
-   timer_init (TIMER_GROUP_0, g->timer, &config);
-   timer_set_counter_value (TIMER_GROUP_0, g->timer, 0x00000000ULL);
-   timer_set_alarm_value (TIMER_GROUP_0, g->timer, TIMER_SCALE / 9600 / 3);
-   timer_enable_intr (TIMER_GROUP_0, g->timer);
-   timer_isr_register (TIMER_GROUP_0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL3|ESP_INTR_FLAG_IRAM, NULL);
-   timer_start (TIMER_GROUP_0, g->timer);
    xEventGroupSetBits (g->group, GROUP_TX_OK);
    xEventGroupSetBits (g->group, GROUP_RX_OK);
    rs485_mode_rx (g);
+   timer_init (TIMER_GROUP_0, g->timer, &config);
+   timer_set_counter_value (TIMER_GROUP_0, g->timer, 0x00000000ULL);
+   timer_set_alarm_value (TIMER_GROUP_0, g->timer, TIMER_SCALE / 9600 / 3);
+   timer_isr_register (TIMER_GROUP_0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL3|ESP_INTR_FLAG_IRAM, NULL);
+   timer_enable_intr (TIMER_GROUP_0, g->timer);
+   timer_start (TIMER_GROUP_0, g->timer);
 }
 
 void *
