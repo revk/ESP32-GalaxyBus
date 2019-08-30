@@ -11,13 +11,14 @@
 #include <unistd.h>
 #include <malloc.h>
 
-#define GALAXYBUSMAX        64
-#define GALAXYBUSMISSED     -1
-#define GALAXYBUSTOOBIG     -2
-#define GALAXYBUSSTARTBIT   -3
-#define GALAXYBUSSTOPBIT    -4
-#define GALAXYBUSCHECKSUM   -5
-#define GALAXYBUSBUSY	   -6
+#define	GALAXYBUSMAX		64
+#define	GALAXYBUSMISSED		-1
+#define	GALAXYBUSTOOBIG		-2
+#define	GALAXYBUSSTARTBIT	-3
+#define	GALAXYBUSSTOPBIT	-4
+#define	GALAXYBUSCHECKSUM	-5
+#define	GALAXYBUSBREAK		-6
+#define	GALAXYBUSBUSY		-7
 
 typedef struct galaxybus_s galaxybus_t;
 

@@ -193,12 +193,12 @@ timer_isr (void *gp)
             g->shift |= 0x80;
          return;
       }
-      if (!g->rxpos)
-         g->rxerr = 0;          // Clear errors, new message
       // Stop bit
       if (!v)
-         g->rxerr = GALAXYBUSSTOPBIT;   // Missing stop bit
+         g->rxerr = (g->shift ? GALAXYBUSSTOPBIT : GALAXYBUSBREAK);     // Missing stop bit
       g->rxgap = g->gap;        // Look for end of message
+      if (!g->rxpos)
+         g->rxerr = 0;          // Clear errors, new message
       // Checksum logic
       if (!g->rxpos)
          g->rxsum = 0xAA;
@@ -209,6 +209,8 @@ timer_isr (void *gp)
             g->rxsum++;         // 1's comp
          g->rxsum += l;
       }
+      if (!g->rxpos && !g->shift)
+         return;                // Ignore zero leading
       if (!g->rxpos && g->shift != g->address && g->address != 0xFF && g->shift != 0xFF)
          g->rxignore = 1;       // Not addressed to us, ignore
       if (g->rxignore)
@@ -295,8 +297,8 @@ galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t
    if (!g)
       return g;
    memset (g, 0, sizeof (*g));
-   g->txpre = 10;               // defaults
-   g->txpost = 10;
+   g->txpre = 2;                // defaults
+   g->txpost = 2;
    g->gap = 10;
    g->de = de;
    g->re = re;
