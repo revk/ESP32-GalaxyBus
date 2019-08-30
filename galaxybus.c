@@ -221,9 +221,7 @@ timer_isr (void *gp)
       if (g->rxignore)
          return;                // Not for us
       if (!g->rxpos)
-      {
          xEventGroupClearBitsFromISR (g->group, GROUP_RX_OK);
-      }
       // End of byte
       if (g->rxpos >= GALAXYBUSMAX)
          g->rxerr = GALAXYBUSTOOBIG;
@@ -255,7 +253,7 @@ timer_isr (void *gp)
             g->txgap++;         // Wait, app is writing new message
          else
          {                      // Start sending
-            xEventGroupClearBitsFromISR (g->group, GROUP_RX_OK);
+            xEventGroupClearBitsFromISR (g->group, GROUP_TX_OK);
             g->bit = 9;
             g->shift = g->txdata[g->txpos++];
          }
