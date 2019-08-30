@@ -5,7 +5,6 @@ static const char TAG[] = "galaxybus";
 #include "galaxybus.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
 #include <driver/timer.h>
 #include <driver/gpio.h>
 
@@ -13,7 +12,6 @@ static const char TAG[] = "galaxybus";
 
 struct galaxybus_s
 {
-   EventGroupHandle_t group;
    int8_t timer;                // Which timer
    int8_t tx;                   // Tx pin
    int8_t rx;                   // Rx pin (can be same as tx)
@@ -169,10 +167,6 @@ timer_isr (void *gp)
                if (g->slave)
                   g->txdue = 1; // Send reply as we are slave
                g->rxpos = 0;    // ready for next message
-               BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-               xEventGroupSetBitsFromISR (g->group, GROUP_RX_READY, &xHigherPriorityTaskWoken);
-               xHigherPriorityTaskWoken = pdFALSE;
-               xEventGroupSetBitsFromISR (g->group, GROUP_RX_OK, &xHigherPriorityTaskWoken);
             }
             if (g->txdue)
                rs485_mode_tx (g);       // Can start tx
@@ -221,8 +215,6 @@ timer_isr (void *gp)
          g->rxignore = 1;       // Not addressed to us, ignore
       if (g->rxignore)
          return;                // Not for us
-      if (!g->rxpos)
-         xEventGroupClearBitsFromISR (g->group, GROUP_RX_OK);
       // End of byte
       if (g->rxpos >= GALAXYBUSMAX)
          g->rxerr = GALAXYBUSTOOBIG;
@@ -244,8 +236,6 @@ timer_isr (void *gp)
          if (g->txpos)
          {                      // End of message
             g->txpos = 0;
-            BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-            xEventGroupSetBitsFromISR (g->group, GROUP_TX_OK, &xHigherPriorityTaskWoken);
             rs485_mode_rx (g);  // Switch back to rx
             return;
          }
@@ -254,7 +244,6 @@ timer_isr (void *gp)
             g->txgap++;         // Wait, app is writing new message
          else
          {                      // Start sending
-            xEventGroupClearBitsFromISR (g->group, GROUP_TX_OK);
             g->bit = 9;
             g->shift = g->txdata[g->txpos++];
          }
@@ -312,7 +301,6 @@ galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t
    g->timer = timer;
    g->slave = (slave ? 1 : 0);
    g->address = (slave ? : MASTER);
-   g->group = xEventGroupCreate ();
    return g;
 }
 
@@ -347,8 +335,6 @@ galaxybus_start (galaxybus_t * g)
    config.alarm_en = TIMER_ALARM_EN;
    config.intr_type = TIMER_INTR_LEVEL;
    config.auto_reload = 1;
-   xEventGroupSetBits (g->group, GROUP_TX_OK);
-   xEventGroupSetBits (g->group, GROUP_RX_OK);
    rs485_mode_rx (g);
    timer_init (TIMER_GROUP_0, g->timer, &config);
    timer_set_counter_value (TIMER_GROUP_0, g->timer, 0x00000000ULL);
@@ -379,7 +365,7 @@ galaxybus_tx (galaxybus_t * g, int len, uint8_t * data)
    if (len >= GALAXYBUSMAX)
       return GALAXYBUSTOOBIG;
    g->txhold = 1;               // Stop sending starting whilst we are loading
-   if (!xEventGroupWaitBits (g->group, GROUP_TX_OK, pdFALSE, pdTRUE, 100 / portTICK_PERIOD_MS))
+   if(g->txpos)
    {
       g->txhold = 0;
       return GALAXYBUSBUSY;
@@ -412,8 +398,6 @@ galaxybus_ready (galaxybus_t * g)
 int
 galaxybus_rx (galaxybus_t * g, int max, uint8_t * data)
 {
-   if (!xEventGroupWaitBits (g->group, GROUP_RX_OK, pdFALSE, pdTRUE, 10 / portTICK_PERIOD_MS))
-      return 0;
    if (g->rxdue == g->rxseq)
       return 0;                 // Nothing ready
    g->rxdue++;
