@@ -38,13 +38,15 @@ struct galaxybus_s
    uint8_t subbit;              // Sub bit count
    uint8_t bit;                 // Bit count
    uint8_t shift;               // Byte
-   uint8_t slave:1;             // We are slave
-   uint8_t started:1;           // Int handler started
+     uint8_t:0;                 //      Bits set from int
    uint8_t txrx:1;              // Mode, true for rx , false for tx //Tx
-   uint8_t txdue:1;             // We are due to send a message
-   uint8_t txhold:1;            // We are in app Tx call and need to hold of sending as copying to buffer
    uint8_t rxignore:1;          // This message is not for us so being ignored
    uint8_t tick:1;              // clk tick
+     uint8_t:0;                 //      Bits set from non int
+   uint8_t slave:1;             // We are slave
+   uint8_t started:1;           // Int handler started
+   uint8_t txhold:1;            // We are in app Tx call and need to hold of sending as copying to buffer
+   uint8_t txdue:1;             // We are due to send a message
 };
 
 #define TIMER_DIVIDER         4 //  Hardware timer clock divider
@@ -139,16 +141,16 @@ timer_isr (void *gp)
    galaxybus_t *g = gp;
    timer_group_intr_clr_in_isr (TIMER_GROUP_0, g->timer);
    timer_group_enable_alarm_in_isr (TIMER_GROUP_0, g->timer);
-   if (g->clk >= 0)
-   {
-      g->tick = 1 - g->tick;
-      if (g->tick)
-         gpio_set (g->clk);
-      else
-         gpio_clr (g->clk);
-   }
    if (g->txrx)
    {                            // Rx
+      if (g->clk >= 0)
+      {
+         g->tick = 1 - g->tick;
+         if (g->tick)
+            gpio_set (g->clk);
+         else
+            gpio_clr (g->clk);
+      }
       uint8_t v = gpio_get (g->rx);
       if (!v && !g->bit)
       {                         // Idle, and low, so this is start of start bit
@@ -165,6 +167,7 @@ timer_isr (void *gp)
          else
          {                      // End of rx
             g->rxignore = 0;
+            char send = g->txdue;
             if (g->rxpos)
             {
                // Message received
@@ -175,11 +178,11 @@ timer_isr (void *gp)
                g->rxerr = 0;
                g->rxseq++;
                if (g->slave)
-                  g->txdue = 1; // Send reply as we are slave
+                  send = 1;     // Send reply as we are slave
                g->rxpos = 0;    // ready for next message
             }
-            if (g->txdue)
-               rs485_mode_tx (g);       // Can start tx
+            if (send)
+               rs485_mode_tx (g);       // Can start tx now
             else if (!g->slave)
                gpio_set (g->de);        // Take bus anyway as we are master - saves it idling while task things about what to do next
          }
@@ -335,6 +338,7 @@ galaxybus_start (galaxybus_t * g)
    gpio_clr (g->re);
    gpio_out (g->re);
    gpio_out (g->clk);
+   gpio_set (g->tx);
    if (g->tx != g->rx)
       gpio_out (g->tx);
    // Set up timer
@@ -380,6 +384,11 @@ galaxybus_tx (galaxybus_t * g, int len, uint8_t * data)
    {
       g->txhold = 0;
       return -GALAXYBUS_ERR_BUSY;
+   }
+   if (g->txdue)
+   {
+      g->txhold = 0;
+      return -GALAXYBUS_ERR_PENDING;
    }
    uint8_t c = 0xAA;
    int p;

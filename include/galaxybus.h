@@ -21,6 +21,7 @@
 	p(CHECKSUM)	\
 	p(BREAK)	\
 	p(BUSY)		\
+	p(PENDING)	\
 	p(MAX)		\
 
 typedef enum
