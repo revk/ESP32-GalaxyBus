@@ -47,7 +47,7 @@ struct galaxybus_s
    uint8_t tick:1;              // clk tick
 };
 
-#define TIMER_DIVIDER         4        //  Hardware timer clock divider
+#define TIMER_DIVIDER         4 //  Hardware timer clock divider
 #define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 
 #define	GROUP_RX_OK	1       // Rx is not busy
@@ -290,7 +290,7 @@ galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t
    if (!g)
       return g;
    memset (g, 0, sizeof (*g));
-   g->txpre = 2;               // defaults
+   g->txpre = 2;                // defaults
    g->txpost = 2;
    g->gap = 10;
    g->de = de;
@@ -339,7 +339,7 @@ galaxybus_start (galaxybus_t * g)
    timer_init (TIMER_GROUP_0, g->timer, &config);
    timer_set_counter_value (TIMER_GROUP_0, g->timer, 0x00000000ULL);
    timer_set_alarm_value (TIMER_GROUP_0, g->timer, TIMER_SCALE / 9600 / 3);
-   timer_isr_register (TIMER_GROUP_0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL3|ESP_INTR_FLAG_IRAM, NULL);
+   timer_isr_register (TIMER_GROUP_0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL3 | ESP_INTR_FLAG_IRAM, NULL);
    timer_enable_intr (TIMER_GROUP_0, g->timer);
    timer_start (TIMER_GROUP_0, g->timer);
 }
@@ -365,7 +365,7 @@ galaxybus_tx (galaxybus_t * g, int len, uint8_t * data)
    if (len >= GALAXYBUSMAX)
       return GALAXYBUSTOOBIG;
    g->txhold = 1;               // Stop sending starting whilst we are loading
-   if(g->txpos)
+   if (g->txpos)
    {
       g->txhold = 0;
       return GALAXYBUSBUSY;
