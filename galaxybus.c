@@ -26,8 +26,8 @@ struct galaxybus_s
    uint8_t txlen;               // The length of tx buf
    volatile uint8_t txpos;      // Position in tx buf we are sending(checked by app level)
    uint8_t txdata[GALAXYBUSMAX];        // The tx message
-   int8_t rxerr;                //  The current in progress message rx error
-   int8_t rxerrorreport;        // The rxerror of the last stored message
+   uint8_t rxerr;               //  The current in progress message rx error
+   uint8_t rxerrorreport;       // The rxerror of the last stored message
    uint8_t rxpos;               // Where we are in rx buf
    uint8_t rxlen;               // Length of last received mesage in rxbuf
    uint8_t rxdue;               // The expected message sequence
@@ -53,6 +53,16 @@ struct galaxybus_s
 #define	GROUP_RX_OK	1       // Rx is not busy
 #define	GROUP_TX_OK	2       // Tx is not busy
 #define	GROUP_RX_READY	4       // New Rx message ready
+
+
+static const char *const galaxybus_err_str[GALAXYBUS_ERR_MAX + 1] = {
+#define p(n) [GALAXYBUS_ERR_##n]="GALAXYBUS_ERR_"#n,
+#define s(v,n) [GALAXYBUS_ERR_STATUS_##n]="GALAXYBUS_ERR_STATUS_"#n,
+   galaxybus_errs
+#undef p
+#undef s
+};
+
 
 // Low level direct GPIO controls
 static inline void
@@ -159,7 +169,7 @@ timer_isr (void *gp)
             {
                // Message received
                if (g->rxsum != g->rxdata[g->rxpos - 1])
-                  g->rxerr = GALAXYBUSCHECKSUM;
+                  g->rxerr = GALAXYBUS_ERR_CHECKSUM;
                g->rxlen = g->rxpos;
                g->rxerrorreport = g->rxerr;
                g->rxerr = 0;
@@ -180,7 +190,7 @@ timer_isr (void *gp)
       {                         // Start bit
          if (v)
          {                      // Missing start bit
-            g->rxerr = GALAXYBUSSTARTBIT;
+            g->rxerr = GALAXYBUS_ERR_STARTBIT;
             g->bit = 0;         // Back to idle
          }
          return;
@@ -194,7 +204,7 @@ timer_isr (void *gp)
       }
       // Stop bit
       if (!v)
-         g->rxerr = (g->shift ? GALAXYBUSSTOPBIT : GALAXYBUSBREAK);     // Missing stop bit
+         g->rxerr = (g->shift ? GALAXYBUS_ERR_STOPBIT : GALAXYBUS_ERR_BREAK);   // Missing stop bit
       g->rxgap = g->gap;        // Look for end of message
       // Checksum logic
       if (!g->rxpos)
@@ -217,7 +227,7 @@ timer_isr (void *gp)
          return;                // Not for us
       // End of byte
       if (g->rxpos >= GALAXYBUSMAX)
-         g->rxerr = GALAXYBUSTOOBIG;
+         g->rxerr = GALAXYBUS_ERR_TOOBIG;
       else
          g->rxdata[g->rxpos++] = g->shift;
       return;
@@ -363,12 +373,13 @@ int
 galaxybus_tx (galaxybus_t * g, int len, uint8_t * data)
 {
    if (len >= GALAXYBUSMAX)
-      return GALAXYBUSTOOBIG;
+      return -GALAXYBUS_ERR_TOOBIG;
    g->txhold = 1;               // Stop sending starting whilst we are loading
+   // TODO hold for tx to be ready...
    if (g->txpos)
    {
       g->txhold = 0;
-      return GALAXYBUSBUSY;
+      return -GALAXYBUS_ERR_BUSY;
    }
    uint8_t c = 0xAA;
    int p;
@@ -402,17 +413,27 @@ galaxybus_rx (galaxybus_t * g, int max, uint8_t * data)
       return 0;                 // Nothing ready
    g->rxdue++;
    if (g->rxdue != g->rxseq)
-      return GALAXYBUSMISSED;   // Missed one
+      return -GALAXYBUS_ERR_MISSED;     // Missed one
    if (!g->rxlen)
       return 0;                 // Uh?
    if (g->rxerrorreport)
-      return g->rxerrorreport;  // Bad rx
+      return -g->rxerrorreport; // Bad rx
    if (g->rxlen > max)
-      return GALAXYBUSTOOBIG;   // No space
+      return -GALAXYBUS_ERR_TOOBIG;     // No space
    int p;
    for (p = 0; p < g->rxlen - 1; p++)
       data[p] = g->rxdata[p];
    if (g->rxpos || g->rxdue != g->rxseq)
-      return GALAXYBUSMISSED;   // Missed one whilst reading data !
+      return -GALAXYBUS_ERR_MISSED;     // Missed one whilst reading data !
    return p;
+}
+
+const char *
+galaxybus_err_to_name (int e)
+{
+   if (e < 0)
+      e = 0 - e;
+   if (e > GALAXYBUS_ERR_MAX)
+      return "GALAXYBUS_ERR_UNKNOWN";
+   return galaxybus_err_str[e];
 }

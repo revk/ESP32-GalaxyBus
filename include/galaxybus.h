@@ -12,13 +12,23 @@
 #include <malloc.h>
 
 #define	GALAXYBUSMAX		64
-#define	GALAXYBUSMISSED		-1
-#define	GALAXYBUSTOOBIG		-2
-#define	GALAXYBUSSTARTBIT	-3
-#define	GALAXYBUSSTOPBIT	-4
-#define	GALAXYBUSCHECKSUM	-5
-#define	GALAXYBUSBREAK		-6
-#define	GALAXYBUSBUSY		-7
+#define	galaxybus_errs	\
+	p(OK)	\
+	p(MISSED)	\
+	p(TOOBIG)	\
+	p(STARTBIT)	\
+	p(STOPBIT)	\
+	p(CHECKSUM)	\
+	p(BREAK)	\
+	p(BUSY)		\
+	p(MAX)		\
+
+typedef enum
+{
+#define p(n)    GALAXYBUS_ERR_##n,
+	   galaxybus_errs
+#undef p
+} galaxybus_err_t;
 
 typedef struct galaxybus_s galaxybus_t;
 
@@ -31,5 +41,7 @@ void *galaxybus_end (galaxybus_t *);
 int galaxybus_tx (galaxybus_t *, int len, uint8_t * buf);
 int galaxybus_ready (galaxybus_t *);
 int galaxybus_rx (galaxybus_t *, int max, uint8_t * buf);
+
+const char * galaxybus_err_to_name (int e);
 
 #endif
