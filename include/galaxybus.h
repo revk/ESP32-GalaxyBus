@@ -35,7 +35,7 @@ typedef struct galaxybus_s galaxybus_t;
 
 // Set up
 galaxybus_t *galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t clk, uint8_t slave);
-void galaxybus_set_timing (galaxybus_t * g, uint32_t pre, uint32_t post, uint32_t gap);
+void galaxybus_set_timing (galaxybus_t * g, uint8_t txpre, uint8_t txpost, uint8_t rxpre,uint8_t rxpost);
 void galaxybus_start (galaxybus_t *);
 void *galaxybus_end (galaxybus_t *);
 

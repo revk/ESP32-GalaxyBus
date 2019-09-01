@@ -19,10 +19,11 @@ struct galaxybus_s
    int8_t re;                   // RE pin (optional, can be same as DE)
    int8_t clk;                  // Debug pin (optional)
    uint8_t address;             // Us
-   uint32_t txpre;              // Pre tx drive(high) (bits)
-   uint32_t txpost;             // Post tx drive(high) (bits)
-   uint32_t gap;                // Gap after which we assume end of message (bits)
-   uint32_t txgap;              // We are sending pre / post drive
+   uint8_t txpre;               // Pre tx drive(high) (bits)
+   uint8_t txpost;              // Post tx drive(high) (bits)
+   uint8_t rxpre;               // Pre rx gap (bits)
+   uint8_t rxpost;              // Post rx gap (bits) for end of message
+   uint8_t gap;                 // Pre/post gap count
    uint8_t txlen;               // The length of tx buf
    volatile uint8_t txpos;      // Position in tx buf we are sending(checked by app level)
    uint8_t txdata[GALAXYBUSMAX];        // The tx message
@@ -32,7 +33,6 @@ struct galaxybus_s
    uint8_t rxlen;               // Length of last received mesage in rxbuf
    uint8_t rxdue;               // The expected message sequence
    uint8_t rxsum;               // The current checksum
-   uint8_t rxgap;               // The remaining end of message timeout
    volatile uint8_t rxseq;      // The last received message sequence
    uint8_t rxdata[GALAXYBUSMAX];        // The Rx data
    uint8_t subbit;              // Sub bit count
@@ -46,7 +46,7 @@ struct galaxybus_s
    uint8_t slave:1;             // We are slave
    uint8_t started:1;           // Int handler started
    uint8_t txhold:1;            // We are in app Tx call and need to hold of sending as copying to buffer
-   uint8_t txdue:1;             // We are due to send a message
+   volatile uint8_t txdue:1;             // We are due to send a message
 };
 
 #define TIMER_DIVIDER         4 //  Hardware timer clock divider
@@ -121,6 +121,7 @@ rs485_mode_rx (galaxybus_t * g)
       gpio_in (g->rx);          // Input
    gpio_clr (g->de);
    g->rxerr = 0;
+   g->gap = g->rxpre;
    g->txrx = 1;                 // Rx mode
 }
 
@@ -130,7 +131,7 @@ rs485_mode_tx (galaxybus_t * g)
    gpio_set (g->de);
    if (g->tx == g->rx)
       gpio_out (g->rx);
-   g->txgap = g->txpre;
+   g->gap = g->txpre;
    g->txdue = 0;
    g->txrx = 0;                 // Tx mode
 }
@@ -162,8 +163,8 @@ timer_isr (void *gp)
       g->subbit = 2;            // Three sub bits per bit
       if (!g->bit)
       {                         // Idle
-         if (g->rxgap)
-            g->rxgap--;
+         if (g->gap)
+            g->gap--;
          else
          {                      // End of rx
             g->rxignore = 0;
@@ -208,7 +209,7 @@ timer_isr (void *gp)
       // Stop bit
       if (!v)
          g->rxerr = (g->shift ? GALAXYBUS_ERR_STOPBIT : GALAXYBUS_ERR_BREAK);   // Missing stop bit
-      g->rxgap = g->gap;        // Look for end of message
+      g->gap = g->txpost;       // Look for end of message
       // Checksum logic
       if (!g->rxpos)
          g->rxsum = 0xAA;
@@ -240,11 +241,11 @@ timer_isr (void *gp)
       return;
    g->subbit = 2;               // Three sub bits per bit
    uint8_t t = 1;
-   if (g->txgap)
+   if (g->gap)
    {
       t = 1;
-      g->txgap--;
-      if (!g->txgap)
+      g->gap--;
+      if (!g->gap)
       {                         // End of gap
          if (g->txpos)
          {                      // End of message
@@ -254,7 +255,7 @@ timer_isr (void *gp)
          }
          // Start of message
          if (g->txhold)
-            g->txgap++;         // Wait, app is writing new message
+            g->gap++;           // Wait, app is writing new message
          else
          {                      // Start sending
             g->bit = 9;
@@ -278,7 +279,7 @@ timer_isr (void *gp)
          g->shift = g->txdata[g->txpos++];
          g->bit = 9;
       } else
-         g->txgap = g->txpost;  // End of message
+         g->gap = g->txpost;    // End of message
    }
    if (t)
       gpio_set (g->tx);
@@ -303,9 +304,10 @@ galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t
    if (!g)
       return g;
    memset (g, 0, sizeof (*g));
-   g->txpre = 2;                // defaults
-   g->txpost = 2;
-   g->gap = 10;
+   g->txpre = 10;               // defaults
+   g->txpost = 10;
+   g->rxpre = 50;
+   g->rxpost = 10;
    g->de = de;
    g->re = re;
    g->tx = tx;
@@ -318,14 +320,16 @@ galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t
 }
 
 void
-galaxybus_set_timing (galaxybus_t * g, uint32_t pre, uint32_t post, uint32_t gap)
+galaxybus_set_timing (galaxybus_t * g, uint8_t txpre, uint8_t txpost, uint8_t rxpre, uint8_t rxpost)
 {
-   if (pre)
-      g->txpre = pre;
-   if (post)
-      g->txpost = post;
-   if (gap)
-      g->gap = gap;
+   if (txpre)
+      g->txpre = txpre;
+   if (txpost)
+      g->txpost = txpost;
+   if (rxpre)
+      g->rxpre = rxpre;
+   if (rxpost)
+      g->rxpost = rxpost;
 }
 
 void
@@ -379,7 +383,8 @@ galaxybus_tx (galaxybus_t * g, int len, uint8_t * data)
    if (len >= GALAXYBUSMAX)
       return -GALAXYBUS_ERR_TOOBIG;
    g->txhold = 1;               // Stop sending starting whilst we are loading
-   // TODO hold for tx to be ready...
+   while (g->txpos||g->txdue)
+      usleep (1000);
    if (g->txpos)
    {
       g->txhold = 0;
