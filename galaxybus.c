@@ -41,12 +41,12 @@ struct galaxybus_s
      uint8_t:0;                 //      Bits set from int
    uint8_t txrx:1;              // Mode, true for rx , false for tx //Tx
    uint8_t rxignore:1;          // This message is not for us so being ignored
-   uint8_t tick:1;              // clk tick
+   uint8_t tick:2;              // clk tick
      uint8_t:0;                 //      Bits set from non int
    uint8_t slave:1;             // We are slave
    uint8_t started:1;           // Int handler started
    uint8_t txhold:1;            // We are in app Tx call and need to hold of sending as copying to buffer
-   volatile uint8_t txdue:1;             // We are due to send a message
+   volatile uint8_t txdue:1;    // We are due to send a message
 };
 
 #define TIMER_DIVIDER         4 //  Hardware timer clock divider
@@ -142,16 +142,17 @@ timer_isr (void *gp)
    galaxybus_t *g = gp;
    timer_group_intr_clr_in_isr (TIMER_GROUP_0, g->timer);
    timer_group_enable_alarm_in_isr (TIMER_GROUP_0, g->timer);
+   if (g->clk >= 0)
+   {
+      if (g->tick++ == 2)
+         g->tick = 0;
+      if (g->tick == 0 || (g->tick == 1 && g->txrx))
+         gpio_clr (g->clk);
+      else
+         gpio_set (g->clk);
+   }
    if (g->txrx)
    {                            // Rx
-      if (g->clk >= 0)
-      {
-         g->tick = 1 - g->tick;
-         if (g->tick)
-            gpio_set (g->clk);
-         else
-            gpio_clr (g->clk);
-      }
       uint8_t v = gpio_get (g->rx);
       if (!v && !g->bit)
       {                         // Idle, and low, so this is start of start bit
@@ -383,7 +384,7 @@ galaxybus_tx (galaxybus_t * g, int len, uint8_t * data)
    if (len >= GALAXYBUSMAX)
       return -GALAXYBUS_ERR_TOOBIG;
    g->txhold = 1;               // Stop sending starting whilst we are loading
-   while (g->txpos||g->txdue)
+   while (g->txpos || g->txdue)
       usleep (1000);
    if (g->txpos)
    {
