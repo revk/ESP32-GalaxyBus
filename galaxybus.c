@@ -140,8 +140,8 @@ void IRAM_ATTR
 timer_isr (void *gp)
 {
    galaxybus_t *g = gp;
-   timer_group_clr_intr_status_in_isr (TIMER_GROUP_0, g->timer);
-   timer_group_enable_alarm_in_isr (TIMER_GROUP_0, g->timer);
+   timer_group_clr_intr_status_in_isr (0, g->timer);
+   timer_group_enable_alarm_in_isr (0, g->timer);
    if (g->clk >= 0)
    {
       if (g->tick++ == 2)
@@ -355,12 +355,12 @@ galaxybus_start (galaxybus_t * g)
    config.intr_type = TIMER_INTR_LEVEL;
    config.auto_reload = 1;
    rs485_mode_rx (g);
-   timer_init (TIMER_GROUP_0, g->timer, &config);
-   timer_set_counter_value (TIMER_GROUP_0, g->timer, 0x00000000ULL);
-   timer_set_alarm_value (TIMER_GROUP_0, g->timer, TIMER_SCALE / 9600 / 3);
-   timer_isr_register (TIMER_GROUP_0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL3 | ESP_INTR_FLAG_IRAM, NULL);
-   timer_enable_intr (TIMER_GROUP_0, g->timer);
-   timer_start (TIMER_GROUP_0, g->timer);
+   timer_init (0, g->timer, &config);
+   timer_set_counter_value (0, g->timer, 0x00000000ULL);
+   timer_set_alarm_value (0, g->timer, TIMER_SCALE / 9600 / 3);
+   timer_isr_register (0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL3 | ESP_INTR_FLAG_IRAM, NULL);
+   timer_enable_intr (0, g->timer);
+   timer_start (0, g->timer);
 }
 
 void *
@@ -370,7 +370,7 @@ galaxybus_end (galaxybus_t * g)
    {
       if (g->started)
       {
-         timer_disable_intr (TIMER_GROUP_0, g->timer);
+         timer_disable_intr (0, g->timer);
       }
       free (g);
    }
