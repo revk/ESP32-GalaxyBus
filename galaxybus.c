@@ -140,7 +140,7 @@ void IRAM_ATTR
 timer_isr (void *gp)
 {
    galaxybus_t *g = gp;
-   timer_group_intr_clr_in_isr (TIMER_GROUP_0, g->timer);
+   timer_group_clr_intr_status_in_isr (TIMER_GROUP_0, g->timer);
    timer_group_enable_alarm_in_isr (TIMER_GROUP_0, g->timer);
    if (g->clk >= 0)
    {
