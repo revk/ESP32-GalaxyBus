@@ -140,8 +140,6 @@ void IRAM_ATTR
 timer_isr (void *gp)
 {
    galaxybus_t *g = gp;
-   timer_group_clr_intr_status_in_isr (0, g->timer);
-   timer_group_enable_alarm_in_isr (0, g->timer);
    if (g->clk >= 0)
    {
       if (g->tick++ == 2)
@@ -358,7 +356,7 @@ galaxybus_start (galaxybus_t * g)
    timer_init (0, g->timer, &config);
    timer_set_counter_value (0, g->timer, 0x00000000ULL);
    timer_set_alarm_value (0, g->timer, TIMER_SCALE / 9600 / 3);
-   timer_isr_register (0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL3 | ESP_INTR_FLAG_IRAM, NULL);
+   timer_isr_callback_add (0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_IRAM);
    timer_enable_intr (0, g->timer);
    timer_start (0, g->timer);
 }
