@@ -1,6 +1,6 @@
 // Galaxy RS485 bus
 // Copyright © 2019 Adrian Kennard, Andrews & Arnold Ltd. See LICENCE file for details. GPL 3.0
-static const char TAG[] = "galaxybus";
+//static const char TAG[] = "galaxybus";
 
 #include "galaxybus.h"
 #include "esp_log.h"
