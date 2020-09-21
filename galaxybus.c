@@ -186,7 +186,7 @@ timer_isr (void *gp)
             else if (!g->slave)
                gpio_set (g->de);        // Take bus anyway as we are master - saves it idling while task things about what to do next
          }
-         returno false;
+         return false;
       }
       g->bit--;
       if (g->bit == 9)
