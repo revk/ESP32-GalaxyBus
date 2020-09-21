@@ -136,7 +136,7 @@ rs485_mode_tx (galaxybus_t * g)
    g->txrx = 0;                 // Tx mode
 }
 
-void IRAM_ATTR
+bool IRAM_ATTR
 timer_isr (void *gp)
 {
    galaxybus_t *g = gp;
@@ -158,7 +158,7 @@ timer_isr (void *gp)
          g->bit = 10;
       }
       if (g->subbit--)
-         return;
+         return false;
       g->subbit = 2;            // Three sub bits per bit
       if (!g->bit)
       {                         // Idle
@@ -186,7 +186,7 @@ timer_isr (void *gp)
             else if (!g->slave)
                gpio_set (g->de);        // Take bus anyway as we are master - saves it idling while task things about what to do next
          }
-         return;
+         returno false;
       }
       g->bit--;
       if (g->bit == 9)
@@ -196,14 +196,14 @@ timer_isr (void *gp)
             g->rxerr = GALAXYBUS_ERR_STARTBIT;
             g->bit = 0;         // Back to idle
          }
-         return;
+         return false;
       }
       if (g->bit)
       {                         // Shift in
          g->shift >>= 1;
          if (v)
             g->shift |= 0x80;
-         return;
+         return false;
       }
       // Stop bit
       if (!v)
@@ -222,22 +222,22 @@ timer_isr (void *gp)
       if (!g->rxpos && !g->shift)
       {
          g->rxerr = 0;
-         return;                // Ignore zero leading
+         return false;                // Ignore zero leading
       }
       if (!g->rxpos && g->shift != g->address && g->address != 0xFF && g->shift != 0xFF)
          g->rxignore = 1;       // Not addressed to us, ignore
       if (g->rxignore)
-         return;                // Not for us
+         return false;                // Not for us
       // End of byte
       if (g->rxpos >= GALAXYBUSMAX)
          g->rxerr = GALAXYBUS_ERR_TOOBIG;
       else
          g->rxdata[g->rxpos++] = g->shift;
-      return;
+      return false;
    }
    // Tx
    if (g->subbit--)
-      return;
+      return false;
    g->subbit = 2;               // Three sub bits per bit
    uint8_t t = 1;
    if (g->gap)
@@ -250,7 +250,7 @@ timer_isr (void *gp)
          {                      // End of message
             g->txpos = 0;
             rs485_mode_rx (g);  // Switch back to rx
-            return;
+            return false;
          }
          // Start of message
          if (g->txhold)
@@ -284,6 +284,7 @@ timer_isr (void *gp)
       gpio_set (g->tx);
    else
       gpio_clr (g->tx);
+   return false;
 }
 
 // Set up
