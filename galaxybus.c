@@ -66,7 +66,16 @@ static const char *const galaxybus_err_str[GALAXYBUS_ERR_MAX + 1] = {
 
 
 // Low level direct GPIO controls
-static IRAM_ATTR inline void gpio_in(int8_t r)
+#define gpio_in(r) {if ((r) >= 32)GPIO_REG_WRITE(GPIO_ENABLE1_W1TC_REG, 1 << ((r) - 32));else if ((r) >= 0)GPIO_REG_WRITE(GPIO_ENABLE_W1TC_REG, 1 << (r));}
+#define gpio_out(r) {if ((r) >= 32)GPIO_REG_WRITE(GPIO_ENABLE1_W1TS_REG, 1 << ((r) - 32)); else if ((r) >= 0)GPIO_REG_WRITE(GPIO_ENABLE_W1TS_REG, 1 << (r));}
+#define gpio_set(r) {if ((r) >= 32)GPIO_REG_WRITE(GPIO_OUT1_W1TS_REG, 1 << ((r) - 32)); else if ((r) >= 0)GPIO_REG_WRITE(GPIO_OUT_W1TS_REG, 1 << (r));}
+#define gpio_clr(r) {if ((r) >= 32)GPIO_REG_WRITE(GPIO_OUT1_W1TC_REG, 1 << ((r) - 32));else if ((r) >= 0)GPIO_REG_WRITE(GPIO_OUT_W1TC_REG, 1 << (r));}
+#define gpio_get(r) (((r) >= 32)?((GPIO_REG_READ(GPIO_IN1_REG) >> ((r) - 32)) & 1):((r) >= 0)?((GPIO_REG_READ(GPIO_IN_REG) >> (r)) & 1):0)
+#define rs485_mode_rx(g) {if ((g)->tx == (g)->rx)gpio_in((g)->rx);gpio_clr((g)->de);(g)->rxerr = 0;(g)->gap = (g)->rxpre;(g)->txrx = 1;}
+#define rs485_mode_tx(g) {gpio_set((g)->de);if ((g)->tx == (g)->rx)gpio_out((g)->rx);(g)->gap = (g)->txpre;(g)->txdue = 0;(g)->txrx = 0;}
+
+#if 0
+static inline void gpio_in(int8_t r)
 {
    if (r >= 32)
       GPIO_REG_WRITE(GPIO_ENABLE1_W1TC_REG, 1 << (r - 32));
@@ -74,7 +83,7 @@ static IRAM_ATTR inline void gpio_in(int8_t r)
       GPIO_REG_WRITE(GPIO_ENABLE_W1TC_REG, 1 << r);
 }
 
-static IRAM_ATTR inline void gpio_out(int8_t r)
+static inline void gpio_out(int8_t r)
 {
    if (r >= 32)
       GPIO_REG_WRITE(GPIO_ENABLE1_W1TS_REG, 1 << (r - 32));
@@ -82,7 +91,7 @@ static IRAM_ATTR inline void gpio_out(int8_t r)
       GPIO_REG_WRITE(GPIO_ENABLE_W1TS_REG, 1 << r);
 }
 
-static IRAM_ATTR inline void gpio_set(int8_t r)
+static inline void gpio_set(int8_t r)
 {
    if (r >= 32)
       GPIO_REG_WRITE(GPIO_OUT1_W1TS_REG, 1 << (r - 32));
@@ -90,7 +99,7 @@ static IRAM_ATTR inline void gpio_set(int8_t r)
       GPIO_REG_WRITE(GPIO_OUT_W1TS_REG, 1 << r);
 }
 
-static IRAM_ATTR inline void gpio_clr(int8_t r)
+static inline void gpio_clr(int8_t r)
 {
    if (r >= 32)
       GPIO_REG_WRITE(GPIO_OUT1_W1TC_REG, 1 << (r - 32));
@@ -98,7 +107,7 @@ static IRAM_ATTR inline void gpio_clr(int8_t r)
       GPIO_REG_WRITE(GPIO_OUT_W1TC_REG, 1 << r);
 }
 
-static IRAM_ATTR inline uint32_t gpio_get(int8_t r)
+static inline uint32_t gpio_get(int8_t r)
 {
    if (r >= 32)
       return (GPIO_REG_READ(GPIO_IN1_REG) >> (r - 32)) & 1;
@@ -108,7 +117,7 @@ static IRAM_ATTR inline uint32_t gpio_get(int8_t r)
       return 0;
 }
 
-static IRAM_ATTR inline void rs485_mode_rx(galaxybus_t * g)
+static inline void rs485_mode_rx(galaxybus_t * g)
 {                               // Switch to rx mode
    if (g->tx == g->rx)
       gpio_in(g->rx);           // Input
@@ -118,7 +127,7 @@ static IRAM_ATTR inline void rs485_mode_rx(galaxybus_t * g)
    g->txrx = 1;                 // Rx mode
 }
 
-static IRAM_ATTR inline void rs485_mode_tx(galaxybus_t * g)
+static inline void rs485_mode_tx(galaxybus_t * g)
 {                               // Switch to tx mode
    gpio_set(g->de);
    if (g->tx == g->rx)
@@ -127,6 +136,7 @@ static IRAM_ATTR inline void rs485_mode_tx(galaxybus_t * g)
    g->txdue = 0;
    g->txrx = 0;                 // Tx mode
 }
+#endif
 
 bool IRAM_ATTR timer_isr(void *gp)
 {
