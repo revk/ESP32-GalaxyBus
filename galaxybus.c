@@ -65,78 +65,14 @@ static const char *const galaxybus_err_str[GALAXYBUS_ERR_MAX + 1] = {
 };
 
 
-// Low level direct GPIO controls
-#define gpio_in(r) {if ((r) >= 32)GPIO_REG_WRITE(GPIO_ENABLE1_W1TC_REG, 1 << ((r) - 32));else if ((r) >= 0)GPIO_REG_WRITE(GPIO_ENABLE_W1TC_REG, 1 << (r));}
-#define gpio_out(r) {if ((r) >= 32)GPIO_REG_WRITE(GPIO_ENABLE1_W1TS_REG, 1 << ((r) - 32)); else if ((r) >= 0)GPIO_REG_WRITE(GPIO_ENABLE_W1TS_REG, 1 << (r));}
-#define gpio_set(r) {if ((r) >= 32)GPIO_REG_WRITE(GPIO_OUT1_W1TS_REG, 1 << ((r) - 32)); else if ((r) >= 0)GPIO_REG_WRITE(GPIO_OUT_W1TS_REG, 1 << (r));}
-#define gpio_clr(r) {if ((r) >= 32)GPIO_REG_WRITE(GPIO_OUT1_W1TC_REG, 1 << ((r) - 32));else if ((r) >= 0)GPIO_REG_WRITE(GPIO_OUT_W1TC_REG, 1 << (r));}
+// Low level direct GPIO controls - inlines were not playing with some optimisation modes
+#define gpio_in(r) do{if ((r) >= 32)GPIO_REG_WRITE(GPIO_ENABLE1_W1TC_REG, 1 << ((r) - 32));else if ((r) >= 0)GPIO_REG_WRITE(GPIO_ENABLE_W1TC_REG, 1 << (r));}while(0)
+#define gpio_out(r) do{if ((r) >= 32)GPIO_REG_WRITE(GPIO_ENABLE1_W1TS_REG, 1 << ((r) - 32)); else if ((r) >= 0)GPIO_REG_WRITE(GPIO_ENABLE_W1TS_REG, 1 << (r));}while(0)
+#define gpio_set(r) do{if ((r) >= 32)GPIO_REG_WRITE(GPIO_OUT1_W1TS_REG, 1 << ((r) - 32)); else if ((r) >= 0)GPIO_REG_WRITE(GPIO_OUT_W1TS_REG, 1 << (r));}while(0)
+#define gpio_clr(r) do{if ((r) >= 32)GPIO_REG_WRITE(GPIO_OUT1_W1TC_REG, 1 << ((r) - 32));else if ((r) >= 0)GPIO_REG_WRITE(GPIO_OUT_W1TC_REG, 1 << (r));}while(0)
 #define gpio_get(r) (((r) >= 32)?((GPIO_REG_READ(GPIO_IN1_REG) >> ((r) - 32)) & 1):((r) >= 0)?((GPIO_REG_READ(GPIO_IN_REG) >> (r)) & 1):0)
-#define rs485_mode_rx(g) {if ((g)->tx == (g)->rx)gpio_in((g)->rx);gpio_clr((g)->de);(g)->rxerr = 0;(g)->gap = (g)->rxpre;(g)->txrx = 1;}
-#define rs485_mode_tx(g) {gpio_set((g)->de);if ((g)->tx == (g)->rx)gpio_out((g)->rx);(g)->gap = (g)->txpre;(g)->txdue = 0;(g)->txrx = 0;}
-
-#if 0
-static inline void gpio_in(int8_t r)
-{
-   if (r >= 32)
-      GPIO_REG_WRITE(GPIO_ENABLE1_W1TC_REG, 1 << (r - 32));
-   else if (r >= 0)
-      GPIO_REG_WRITE(GPIO_ENABLE_W1TC_REG, 1 << r);
-}
-
-static inline void gpio_out(int8_t r)
-{
-   if (r >= 32)
-      GPIO_REG_WRITE(GPIO_ENABLE1_W1TS_REG, 1 << (r - 32));
-   else if (r >= 0)
-      GPIO_REG_WRITE(GPIO_ENABLE_W1TS_REG, 1 << r);
-}
-
-static inline void gpio_set(int8_t r)
-{
-   if (r >= 32)
-      GPIO_REG_WRITE(GPIO_OUT1_W1TS_REG, 1 << (r - 32));
-   else if (r >= 0)
-      GPIO_REG_WRITE(GPIO_OUT_W1TS_REG, 1 << r);
-}
-
-static inline void gpio_clr(int8_t r)
-{
-   if (r >= 32)
-      GPIO_REG_WRITE(GPIO_OUT1_W1TC_REG, 1 << (r - 32));
-   else if (r >= 0)
-      GPIO_REG_WRITE(GPIO_OUT_W1TC_REG, 1 << r);
-}
-
-static inline uint32_t gpio_get(int8_t r)
-{
-   if (r >= 32)
-      return (GPIO_REG_READ(GPIO_IN1_REG) >> (r - 32)) & 1;
-   else if (r >= 0)
-      return (GPIO_REG_READ(GPIO_IN_REG) >> r) & 1;
-   else
-      return 0;
-}
-
-static inline void rs485_mode_rx(galaxybus_t * g)
-{                               // Switch to rx mode
-   if (g->tx == g->rx)
-      gpio_in(g->rx);           // Input
-   gpio_clr(g->de);
-   g->rxerr = 0;
-   g->gap = g->rxpre;
-   g->txrx = 1;                 // Rx mode
-}
-
-static inline void rs485_mode_tx(galaxybus_t * g)
-{                               // Switch to tx mode
-   gpio_set(g->de);
-   if (g->tx == g->rx)
-      gpio_out(g->rx);
-   g->gap = g->txpre;
-   g->txdue = 0;
-   g->txrx = 0;                 // Tx mode
-}
-#endif
+#define rs485_mode_rx(g) do{if ((g)->tx == (g)->rx)gpio_in((g)->rx);gpio_clr((g)->de);(g)->rxerr = 0;(g)->gap = (g)->rxpre;(g)->txrx = 1;}while(0)
+#define rs485_mode_tx(g) do{gpio_set((g)->de);if ((g)->tx == (g)->rx)gpio_out((g)->rx);(g)->gap = (g)->txpre;(g)->txdue = 0;(g)->txrx = 0;}while(0)
 
 bool IRAM_ATTR timer_isr(void *gp)
 {
@@ -170,8 +106,7 @@ bool IRAM_ATTR timer_isr(void *gp)
             g->rxignore = 0;
             char send = g->txdue;
             if (g->rxpos)
-            {
-               // Message received
+            {                   // Message received
                if (g->rxsum != g->rxdata[g->rxpos - 1])
                   g->rxerr = GALAXYBUS_ERR_CHECKSUM;
                g->rxlen = g->rxpos;
@@ -180,12 +115,12 @@ bool IRAM_ATTR timer_isr(void *gp)
                g->rxseq++;
                if (g->slave)
                   send = 1;     // Send reply as we are slave
+               else
+                  gpio_set(g->de);      // Take bus anyway as we are master - saves it idling while task thinks about what to do next
                g->rxpos = 0;    // ready for next message
             }
             if (send)
                rs485_mode_tx(g);        // Can start tx now
-            else if (!g->slave)
-               gpio_set(g->de); // Take bus anyway as we are master - saves it idling while task things about what to do next
          }
          return false;
       }
@@ -209,7 +144,7 @@ bool IRAM_ATTR timer_isr(void *gp)
       // Stop bit
       if (!v)
          g->rxerr = (g->shift ? GALAXYBUS_ERR_STOPBIT : GALAXYBUS_ERR_BREAK);   // Missing stop bit
-      g->gap = g->txpost;       // Look for end of message
+      g->gap = g->rxpost;       // Look for end of message
       // Checksum logic
       if (!g->rxpos)
          g->rxsum = 0xAA;
