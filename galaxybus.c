@@ -66,7 +66,7 @@ static const char *const galaxybus_err_str[GALAXYBUS_ERR_MAX + 1] = {
 
 
 // Low level direct GPIO controls
-static inline void gpio_in(int8_t r)
+static IRAM_ATTR inline void gpio_in(int8_t r)
 {
    if (r >= 32)
       GPIO_REG_WRITE(GPIO_ENABLE1_W1TC_REG, 1 << (r - 32));
@@ -74,7 +74,7 @@ static inline void gpio_in(int8_t r)
       GPIO_REG_WRITE(GPIO_ENABLE_W1TC_REG, 1 << r);
 }
 
-static inline void gpio_out(int8_t r)
+static IRAM_ATTR inline void gpio_out(int8_t r)
 {
    if (r >= 32)
       GPIO_REG_WRITE(GPIO_ENABLE1_W1TS_REG, 1 << (r - 32));
@@ -82,7 +82,7 @@ static inline void gpio_out(int8_t r)
       GPIO_REG_WRITE(GPIO_ENABLE_W1TS_REG, 1 << r);
 }
 
-static inline void gpio_set(int8_t r)
+static IRAM_ATTR inline void gpio_set(int8_t r)
 {
    if (r >= 32)
       GPIO_REG_WRITE(GPIO_OUT1_W1TS_REG, 1 << (r - 32));
@@ -90,7 +90,7 @@ static inline void gpio_set(int8_t r)
       GPIO_REG_WRITE(GPIO_OUT_W1TS_REG, 1 << r);
 }
 
-static inline void gpio_clr(int8_t r)
+static IRAM_ATTR inline void gpio_clr(int8_t r)
 {
    if (r >= 32)
       GPIO_REG_WRITE(GPIO_OUT1_W1TC_REG, 1 << (r - 32));
@@ -98,7 +98,7 @@ static inline void gpio_clr(int8_t r)
       GPIO_REG_WRITE(GPIO_OUT_W1TC_REG, 1 << r);
 }
 
-static inline uint32_t gpio_get(int8_t r)
+static IRAM_ATTR inline uint32_t gpio_get(int8_t r)
 {
    if (r >= 32)
       return (GPIO_REG_READ(GPIO_IN1_REG) >> (r - 32)) & 1;
@@ -108,7 +108,7 @@ static inline uint32_t gpio_get(int8_t r)
       return 0;
 }
 
-static inline void rs485_mode_rx(galaxybus_t * g)
+static IRAM_ATTR inline void rs485_mode_rx(galaxybus_t * g)
 {                               // Switch to rx mode
    if (g->tx == g->rx)
       gpio_in(g->rx);           // Input
@@ -118,7 +118,7 @@ static inline void rs485_mode_rx(galaxybus_t * g)
    g->txrx = 1;                 // Rx mode
 }
 
-static inline void rs485_mode_tx(galaxybus_t * g)
+static IRAM_ATTR inline void rs485_mode_tx(galaxybus_t * g)
 {                               // Switch to tx mode
    gpio_set(g->de);
    if (g->tx == g->rx)
