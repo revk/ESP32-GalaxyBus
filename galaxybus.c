@@ -327,7 +327,7 @@ void galaxybus_start(galaxybus_t * g)
    // GPIO (does nothing for -ve port IDs)
    gpio_clr(g->de);
    gpio_out(g->de);
-   if (d->de != g->re)
+   if (g->de != g->re)
    {
       gpio_clr(g->re);
       gpio_out(g->re);
