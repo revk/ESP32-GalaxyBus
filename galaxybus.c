@@ -270,17 +270,27 @@ void galaxybus_start(galaxybus_t * g)
 {
    g->started = 1;
    // GPIO (does nothing for -ve port IDs)
+   gpio_reset_pin(g->de);
    gpio_clr(g->de);
    gpio_out(g->de);
-   if (g->de != g->re)
+   if (g->de != g->re && g->re >= 0)
    {
+      gpio_reset_pin(g->re);
       gpio_clr(g->re);
       gpio_out(g->re);
    }
-   gpio_out(g->clk);
+   if (g->clk >= 0)
+   {
+      gpio_reset_pin(g->clk);
+      gpio_out(g->clk);
+   }
+   gpio_reset_pin(g->tx);
    gpio_set(g->tx);
    if (g->tx != g->rx)
+   {
+      gpio_reset_pin(g->rx);
       gpio_out(g->tx);
+   }
    // Set up timer
    timer_config_t config;
    config.divider = TIMER_DIVIDER;
