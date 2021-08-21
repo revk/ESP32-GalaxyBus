@@ -41,6 +41,7 @@ struct galaxybus_s {
    uint8_t txrx:1;              // Mode, true for rx , false for tx //Tx
    uint8_t rxignore:1;          // This message is not for us so being ignored
    uint8_t tick:2;              // clk tick
+   uint8_t rxbrk:1;             // rx break condition
     uint8_t:0;                  //      Bits set from non int
    uint8_t slave:1;             // We are slave
    uint8_t started:1;           // Int handler started
@@ -89,6 +90,8 @@ bool IRAM_ATTR timer_isr(void *gp)
    if (g->txrx)
    {                            // Rx
       uint8_t v = gpio_get(g->rx);
+      if (v && g->rxbrk)
+         g->rxbrk = 0;          // Not a break condition
       if (!v && !g->bit)
       {                         // Idle, and low, so this is start of start bit
          g->subbit = 1;         // Centre of start bit (+/- 1/6 of a bit)
@@ -143,7 +146,7 @@ bool IRAM_ATTR timer_isr(void *gp)
       }
       // Stop bit
       if (!v)
-         g->rxerr = (g->shift ? GALAXYBUS_ERR_STOPBIT : GALAXYBUS_ERR_BREAK);   // Missing stop bit
+         g->rxerr = GALAXYBUS_ERR_STOPBIT;
       g->gap = g->rxpost;       // Look for end of message
       // Checksum logic
       if (!g->rxpos)
@@ -157,6 +160,8 @@ bool IRAM_ATTR timer_isr(void *gp)
       }
       if (!g->rxpos && !g->shift)
       {
+         if (!v)
+            g->rxbrk = 1;       // Break condition
          g->rxerr = 0;
          return false;          // Ignore zero leading
       }
@@ -326,13 +331,15 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
 {
    if (len >= GALAXYBUSMAX)
       return -GALAXYBUS_ERR_TOOBIG;
+   if (g->rxbrk)
+      return -GALAXYBUS_ERR_BREAK;
    g->txhold = 1;               // Stop sending starting whilst we are loading
    int try = 0;
    while (g->txpos || g->txdue)
    {
       usleep(1000);
       if (try++ > 1000)
-         return -GALAXYBUS_ERR_BUSY;
+         return -GALAXYBUS_ERR_BUSY;    // Should never take this long
    }
    if (g->txpos)
    {
@@ -370,6 +377,8 @@ int galaxybus_ready(galaxybus_t * g)
 
 int galaxybus_rx(galaxybus_t * g, int max, uint8_t * data)
 {
+   if (g->rxbrk)
+      return -GALAXYBUS_ERR_BREAK;
    if (g->rxdue == g->rxseq)
       return 0;                 // Nothing ready
    g->rxdue++;
