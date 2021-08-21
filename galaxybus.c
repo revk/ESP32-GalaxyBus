@@ -327,8 +327,13 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
    if (len >= GALAXYBUSMAX)
       return -GALAXYBUS_ERR_TOOBIG;
    g->txhold = 1;               // Stop sending starting whilst we are loading
+   int try = 0;
    while (g->txpos || g->txdue)
+   {
       usleep(1000);
+      if (try++ > 1000)
+         return -GALAXYBUS_ERR_BUSY;
+   }
    if (g->txpos)
    {
       g->txhold = 0;
