@@ -334,7 +334,7 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
    if (len >= GALAXYBUSMAX)
       return -GALAXYBUS_ERR_TOOBIG;
    if (g->rxbrk)
-      return -GALAXYBUS_ERR_BREAK;
+      return -GALAXYBUS_ERR_BREAK;      // Can't Tx if BREAK stuck
    g->txhold = 1;               // Stop sending starting whilst we are loading
    int try = 0;
    while (g->txpos || g->txdue)
@@ -379,10 +379,12 @@ int galaxybus_ready(galaxybus_t * g)
 
 int galaxybus_rx(galaxybus_t * g, int max, uint8_t * data)
 {
-   if (g->rxbrk)
-      return -GALAXYBUS_ERR_BREAK;
    if (g->rxdue == g->rxseq)
+   {
+      if (g->rxbrk)
+         return -GALAXYBUS_ERR_BREAK;   // Nothing ready, but we are in a break condition, so something wrong
       return 0;                 // Nothing ready
+   }
    g->rxdue++;
    if (g->rxdue != g->rxseq)
       return -GALAXYBUS_ERR_MISSED;     // Missed one
