@@ -146,7 +146,11 @@ bool IRAM_ATTR timer_isr(void *gp)
       }
       // Stop bit
       if (!v)
+      {
          g->rxerr = GALAXYBUS_ERR_STOPBIT;
+         if (!g->shift)
+            g->rxbrk = 1;       // Break condition
+      }
       g->gap = g->rxpost;       // Look for end of message
       // Checksum logic
       if (!g->rxpos)
@@ -160,8 +164,6 @@ bool IRAM_ATTR timer_isr(void *gp)
       }
       if (!g->rxpos && !g->shift)
       {
-         if (!v)
-            g->rxbrk = 1;       // Break condition
          g->rxerr = 0;
          return false;          // Ignore zero leading
       }
