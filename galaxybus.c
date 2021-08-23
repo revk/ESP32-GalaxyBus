@@ -276,27 +276,29 @@ void galaxybus_set_timing(galaxybus_t * g, uint8_t txpre, uint8_t txpost, uint8_
 void galaxybus_start(galaxybus_t * g)
 {
    g->started = 1;
-   // GPIO (does nothing for -ve port IDs)
-   gpio_reset_pin(g->de);
-   gpio_clr(g->de);
-   gpio_out(g->de);
-   if (g->de != g->re && g->re >= 0)
-   {
-      gpio_reset_pin(g->re);
-      gpio_clr(g->re);
-      gpio_out(g->re);
-   }
-   if (g->clk >= 0)
-   {
-      gpio_reset_pin(g->clk);
-      gpio_out(g->clk);
-   }
+   // Tx
    gpio_reset_pin(g->tx);
    gpio_set(g->tx);
+   gpio_set_direction(g->tx, GPIO_MODE_OUTPUT);
+   // DE
+   gpio_reset_pin(g->de);
+   gpio_clr(g->de);
+   gpio_set_direction(g->de, GPIO_MODE_OUTPUT);
+   if (g->de != g->re && g->re >= 0)
+   {  // If RE is separate, set RE permanently
+      gpio_reset_pin(g->re);
+      gpio_clr(g->re);
+      gpio_set_direction(g->re, GPIO_MODE_OUTPUT);
+   }
+   if (g->clk >= 0)
+   { // Option clock output
+      gpio_reset_pin(g->clk);
+      gpio_set_direction(g->clk, GPIO_MODE_OUTPUT);
+   }
    if (g->tx != g->rx)
-   {
+   { // If Tx and Rx separate, then set Rx input
       gpio_reset_pin(g->rx);
-      gpio_out(g->tx);
+      gpio_set_direction(g->rx, GPIO_MODE_INPUT);
    }
    // Set up timer
    timer_config_t config;
