@@ -342,8 +342,7 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
    while (g->txpos || g->txdue)
    {
       usleep(1000);
-      if (try++ > 1000)
-         return -GALAXYBUS_ERR_BUSY;    // Should never take this long
+      if (try++ > 1000) break; // Should not take this long
    }
    if (g->txpos)
    {
