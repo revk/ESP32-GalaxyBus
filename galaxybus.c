@@ -312,7 +312,7 @@ void galaxybus_start(galaxybus_t * g)
    timer_init(0, g->timer, &config);
    timer_set_counter_value(0, g->timer, 0x00000000ULL);
    timer_set_alarm_value(0, g->timer, TIMER_SCALE / 9600 / 3);
-   timer_isr_callback_add(0, g->timer, timer_isr, g, ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_IRAM);
+   timer_isr_callback_add(0, g->timer, timer_isr, g, ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_IRAM);
    timer_enable_intr(0, g->timer);
    timer_start(0, g->timer);
 }
