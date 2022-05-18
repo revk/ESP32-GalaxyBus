@@ -28,7 +28,7 @@ struct galaxybus_s {
    uint8_t txdata[GALAXYBUSMAX];        // The tx message
    uint8_t rxerr;               //  The current in progress message rx error
    uint8_t rxerrorreport;       // The rxerror of the last stored message
-   uint8_t rxpos;               // Where we are in rx buf
+   volatile uint8_t rxpos;      // Where we are in rx buf
    uint8_t rxlen;               // Length of last received mesage in rxbuf
    uint8_t rxdue;               // The expected message sequence
    uint8_t rxsum;               // The current checksum
@@ -40,22 +40,17 @@ struct galaxybus_s {
     uint8_t:0;                  //      Bits set from int
    uint8_t txrx:1;              // Mode, true for rx , false for tx //Tx
    uint8_t rxignore:1;          // This message is not for us so being ignored
+   uint8_t rxwait:1;            // Expecting message
    uint8_t tick:2;              // clk tick
    uint8_t rxbrk:1;             // rx break condition
     uint8_t:0;                  //      Bits set from non int
-   uint8_t slave:1;             // We are slave
    uint8_t started:1;           // Int handler started
    uint8_t txhold:1;            // We are in app Tx call and need to hold of sending as copying to buffer
-   volatile uint8_t txdue:1;    // We are due to send a message
+   uint8_t slave:1;             // Slave
 };
 
 #define TIMER_DIVIDER         4 //  Hardware timer clock divider
 #define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
-
-#define	GROUP_RX_OK	1       // Rx is not busy
-#define	GROUP_TX_OK	2       // Tx is not busy
-#define	GROUP_RX_READY	4       // New Rx message ready
-
 
 static const char *const galaxybus_err_str[GALAXYBUS_ERR_MAX + 1] = {
 #define p(n) [GALAXYBUS_ERR_##n]="GALAXYBUS_ERR_"#n,
@@ -65,15 +60,14 @@ static const char *const galaxybus_err_str[GALAXYBUS_ERR_MAX + 1] = {
 #undef s
 };
 
-
 // Low level direct GPIO controls - inlines were not playing with some optimisation modes
 #define gpio_in(r) do{if ((r) >= 32)GPIO_REG_WRITE(GPIO_ENABLE1_W1TC_REG, 1 << ((r) - 32));else if ((r) >= 0)GPIO_REG_WRITE(GPIO_ENABLE_W1TC_REG, 1 << (r));}while(0)
 #define gpio_out(r) do{if ((r) >= 32)GPIO_REG_WRITE(GPIO_ENABLE1_W1TS_REG, 1 << ((r) - 32)); else if ((r) >= 0)GPIO_REG_WRITE(GPIO_ENABLE_W1TS_REG, 1 << (r));}while(0)
 #define gpio_set(r) do{if ((r) >= 32)GPIO_REG_WRITE(GPIO_OUT1_W1TS_REG, 1 << ((r) - 32)); else if ((r) >= 0)GPIO_REG_WRITE(GPIO_OUT_W1TS_REG, 1 << (r));}while(0)
 #define gpio_clr(r) do{if ((r) >= 32)GPIO_REG_WRITE(GPIO_OUT1_W1TC_REG, 1 << ((r) - 32));else if ((r) >= 0)GPIO_REG_WRITE(GPIO_OUT_W1TC_REG, 1 << (r));}while(0)
 #define gpio_get(r) (((r) >= 32)?((GPIO_REG_READ(GPIO_IN1_REG) >> ((r) - 32)) & 1):((r) >= 0)?((GPIO_REG_READ(GPIO_IN_REG) >> (r)) & 1):0)
-#define rs485_mode_rx(g) do{if ((g)->tx == (g)->rx)gpio_in((g)->rx);gpio_clr((g)->de);(g)->rxerr = 0;(g)->gap = (g)->rxpre;(g)->txrx = 1;}while(0)
-#define rs485_mode_tx(g) do{gpio_set((g)->de);if ((g)->tx == (g)->rx)gpio_out((g)->rx);(g)->gap = (g)->txpre;(g)->txdue = 0;(g)->txrx = 0;}while(0)
+#define rs485_mode_rx(g) do{if ((g)->tx == (g)->rx)gpio_in((g)->rx);gpio_clr((g)->de);(g)->rxerr = 0;(g)->gap = (g)->rxpre;(g)->txrx = 1;(g)->rxwait=1;}while(0)
+#define rs485_mode_tx(g) do{gpio_set((g)->de);if ((g)->tx == (g)->rx)gpio_out((g)->rx);(g)->gap = (g)->txpre;(g)->txrx = 0;}while(0)
 
 bool IRAM_ATTR timer_isr(void *gp)
 {
@@ -105,26 +99,37 @@ bool IRAM_ATTR timer_isr(void *gp)
          if (g->gap)
             g->gap--;
          else
-         {                      // End of rx
-            g->rxignore = 0;
-            char send = g->txdue;
-            if (g->rxpos)
+         {                      // End of rx or timeout at start
+            if (g->rxignore)
+            {
+               g->rxignore = 0; // Finished ignoring (we are slave and not for us)
+               if (!g->slave)
+               {
+                  g->rxlen = 0;
+                  g->rxerrorreport = GALAXYBUS_ERR_ADDRESS;     // We expect a reply but it is corrupted somehow
+                  g->rxseq++;
+               }
+            } else if (g->rxpos)
             {                   // Message received
-               if (g->rxsum != g->rxdata[g->rxpos - 1])
+               if (g->rxpos < 2 || g->rxsum != g->rxdata[g->rxpos - 1])
                   g->rxerr = GALAXYBUS_ERR_CHECKSUM;
                g->rxlen = g->rxpos;
                g->rxerrorreport = g->rxerr;
-               g->rxerr = 0;
                g->rxseq++;
-               if (g->slave)
-                  send = 1;     // Send reply as we are slave
-               g->rxpos = 0;    // ready for next message
-            } 
-            if (send)
-               rs485_mode_tx(g);        // Can start tx now
-            else if (!g->slave)
-               gpio_set(g->de); // Take bus anyway as we are master - saves it idling while task thinks about what to do next
-	    // TODO ideally we find a way to resend if no reply
+               rs485_mode_tx(g);        // Reply or next poll - for slave, needs pre-loading tx or quick (TODO loading with default response if not ready)
+            } else if (!g->slave)
+            {
+               if (g->rxwait)
+               {                // Timeout
+                  g->rxlen = 0;
+                  g->rxerrorreport = GALAXYBUS_ERR_TIMEOUT;
+                  g->rxseq++;
+               }
+               rs485_mode_tx(g);
+            }
+            g->rxwait = 0;
+            g->rxpos = 0;       // ready for next message
+            g->rxerr = 0;
          }
          return false;
       }
@@ -155,8 +160,10 @@ bool IRAM_ATTR timer_isr(void *gp)
       g->gap = g->rxpost;       // Look for end of message
       // Checksum logic
       if (!g->rxpos)
+      {
+         g->rxlen = 0;
          g->rxsum = 0xAA;
-      else
+      } else
       {
          uint8_t l = g->rxdata[g->rxpos - 1];
          if ((int) g->rxsum + l > 0xFF)
@@ -197,8 +204,8 @@ bool IRAM_ATTR timer_isr(void *gp)
             return false;
          }
          // Start of message
-         if (g->txhold)
-            g->gap++;           // Wait, app is writing new message
+         if (g->txhold || !g->txlen)
+            g->gap++;           // Wait, app is writing new message or no message yet to send
          else
          {                      // Start sending
             g->bit = 9;
@@ -222,7 +229,10 @@ bool IRAM_ATTR timer_isr(void *gp)
          g->shift = g->txdata[g->txpos++];
          g->bit = 9;
       } else
+      {
+         g->txlen = 0;
          g->gap = g->txpost;    // End of message
+      }
    }
    if (t)
       gpio_set(g->tx);
@@ -338,19 +348,9 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
       return -GALAXYBUS_ERR_TOOBIG;
    if (g->rxbrk)
       return -GALAXYBUS_ERR_BREAK;      // Can't Tx if BREAK stuck
-   int try = 0;
-   while (g->txpos || g->txdue)
-   {
-      usleep(1000);
-      if (try++ > 1000)
-         break;                 // Should not take this long
-   }
-   if (g->txpos)
-      return -GALAXYBUS_ERR_BUSY;
-   if (g->txdue)
-      return -GALAXYBUS_ERR_PENDING;
    g->txhold = 1;               // Stop sending starting whilst we are loading
-   while (g->txpos)
+   int try = 0;
+   while (g->txpos || g->txlen)
    {
       usleep(1000);
       if (try++ > 1000)
@@ -360,6 +360,11 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
    {
       g->txhold = 0;
       return -GALAXYBUS_ERR_BUSY;
+   }
+   if (g->txlen)
+   {
+      g->txhold = 0;
+      return -GALAXYBUS_ERR_PENDING;
    }
    uint8_t c = 0xAA;
    int p;
@@ -372,8 +377,6 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
    }
    g->txdata[p++] = c;          // Checksum
    g->txlen = p;
-   if (!g->slave)
-      g->txdue = 1;             // Send now (if slave we send when polled)
    g->txhold = 0;               // Allow sending
    return len;
 }
@@ -395,18 +398,21 @@ int galaxybus_rx(galaxybus_t * g, int max, uint8_t * data)
    }
    g->rxdue++;
    if (g->rxdue != g->rxseq)
-      return -GALAXYBUS_ERR_MISSED;     // Missed one
-   if (!g->rxlen)
-      return 0;                 // Uh?
+   {
+      g->rxdue = g->rxseq - 1;
+      return -GALAXYBUS_ERR_MISSED;     // Missed one or more
+   }
    if (g->rxerrorreport)
       return -g->rxerrorreport; // Bad rx
+   if (!g->rxlen)
+      return 0;                 // Uh?
    if (g->rxlen > max)
       return -GALAXYBUS_ERR_TOOBIG;     // No space
    int p;
    for (p = 0; p < g->rxlen - 1; p++)
       data[p] = g->rxdata[p];
    if (g->rxpos || g->rxdue != g->rxseq)
-      return -GALAXYBUS_ERR_MISSED;     // Missed one whilst reading data !
+      return -GALAXYBUS_ERR_OVERRUN;    // Missed one whilst reading data !
    return p;
 }
 

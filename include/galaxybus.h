@@ -15,9 +15,12 @@
 #define	galaxybus_errs	\
 	p(OK)	\
 	p(MISSED)	\
+	p(OVERRUN)	\
+	p(ADDRESS)	\
 	p(TOOBIG)	\
 	p(STARTBIT)	\
 	p(STOPBIT)	\
+	p(TIMEOUT)	\
 	p(CHECKSUM)	\
 	p(BREAK)	\
 	p(BUSY)		\
