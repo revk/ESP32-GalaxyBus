@@ -118,12 +118,13 @@ bool IRAM_ATTR timer_isr(void *gp)
                g->rxseq++;
                if (g->slave)
                   send = 1;     // Send reply as we are slave
-               else
-                  gpio_set(g->de);      // Take bus anyway as we are master - saves it idling while task thinks about what to do next
                g->rxpos = 0;    // ready for next message
-            }
+            } 
             if (send)
                rs485_mode_tx(g);        // Can start tx now
+            else if (!g->slave)
+               gpio_set(g->de); // Take bus anyway as we are master - saves it idling while task thinks about what to do next
+	    // TODO ideally we find a way to resend if no reply
          }
          return false;
       }
@@ -285,18 +286,18 @@ void galaxybus_start(galaxybus_t * g)
    gpio_clr(g->de);
    gpio_set_direction(g->de, GPIO_MODE_OUTPUT);
    if (g->de != g->re && g->re >= 0)
-   {  // If RE is separate, set RE permanently
+   {                            // If RE is separate, set RE permanently
       gpio_reset_pin(g->re);
       gpio_clr(g->re);
       gpio_set_direction(g->re, GPIO_MODE_OUTPUT);
    }
    if (g->clk >= 0)
-   { // Option clock output
+   {                            // Option clock output
       gpio_reset_pin(g->clk);
       gpio_set_direction(g->clk, GPIO_MODE_OUTPUT);
    }
    if (g->tx != g->rx)
-   { // If Tx and Rx separate, then set Rx input
+   {                            // If Tx and Rx separate, then set Rx input
       gpio_reset_pin(g->rx);
       gpio_set_direction(g->rx, GPIO_MODE_INPUT);
    }
@@ -337,22 +338,28 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
       return -GALAXYBUS_ERR_TOOBIG;
    if (g->rxbrk)
       return -GALAXYBUS_ERR_BREAK;      // Can't Tx if BREAK stuck
-   g->txhold = 1;               // Stop sending starting whilst we are loading
    int try = 0;
    while (g->txpos || g->txdue)
    {
       usleep(1000);
-      if (try++ > 1000) break; // Should not take this long
+      if (try++ > 1000)
+         break;                 // Should not take this long
+   }
+   if (g->txpos)
+      return -GALAXYBUS_ERR_BUSY;
+   if (g->txdue)
+      return -GALAXYBUS_ERR_PENDING;
+   g->txhold = 1;               // Stop sending starting whilst we are loading
+   while (g->txpos)
+   {
+      usleep(1000);
+      if (try++ > 1000)
+         break;                 // Should not take this long
    }
    if (g->txpos)
    {
       g->txhold = 0;
       return -GALAXYBUS_ERR_BUSY;
-   }
-   if (g->txdue)
-   {
-      g->txhold = 0;
-      return -GALAXYBUS_ERR_PENDING;
    }
    uint8_t c = 0xAA;
    int p;
