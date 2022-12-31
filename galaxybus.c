@@ -323,7 +323,7 @@ void galaxybus_start(galaxybus_t * g)
       .intr_type = TIMER_INTR_LEVEL,
       .auto_reload = 1,
       .clk_src = TIMER_SRC_CLK_DEFAULT,
-   }
+   };
    rs485_mode_rx(g);
    timer_init(0, g->timer, &config);
    timer_set_counter_value(0, g->timer, 0x00000000ULL);
