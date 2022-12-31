@@ -7,6 +7,8 @@
 #include "freertos/FreeRTOS.h"
 #include <driver/timer.h>
 #include <driver/gpio.h>
+#include "esp32/rom/gpio.h"
+#include "soc/gpio_reg.h"
 
 #define MASTER 0x11
 
