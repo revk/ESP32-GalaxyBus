@@ -315,13 +315,15 @@ void galaxybus_start(galaxybus_t * g)
       gpio_set_direction(g->rx, GPIO_MODE_INPUT);
    }
    // Set up timer
-   timer_config_t config;
-   config.divider = TIMER_DIVIDER;
-   config.counter_dir = TIMER_COUNT_UP;
-   config.counter_en = TIMER_PAUSE;
-   config.alarm_en = TIMER_ALARM_EN;
-   config.intr_type = TIMER_INTR_LEVEL;
-   config.auto_reload = 1;
+   timer_config_t config = {
+      .divider = TIMER_DIVIDER,
+      .counter_dir = TIMER_COUNT_UP,
+      .counter_en = TIMER_PAUSE,
+      .alarm_en = TIMER_ALARM_EN,
+      .intr_type = TIMER_INTR_LEVEL,
+      .auto_reload = 1,
+      .clk_src = TIMER_SRC_CLK_DEFAULT,
+   }
    rs485_mode_rx(g);
    timer_init(0, g->timer, &config);
    timer_set_counter_value(0, g->timer, 0x00000000ULL);
