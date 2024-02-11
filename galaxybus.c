@@ -247,7 +247,7 @@ bool IRAM_ATTR timer_isr(void *gp)
 // Set up
 galaxybus_t *galaxybus_init(int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t clk, uint8_t slave)
 {
-   if (timer < 0 || tx < 0 || rx < 0 || de < 0 || re < 0 || tx == de || rx == de || tx == re || rx == re)
+   if (timer < 0 || tx < 0 || rx < 0 || de < 0 || tx == de || rx == de || tx == re || rx == re)
       return NULL;
    if (!GPIO_IS_VALID_OUTPUT_GPIO(tx)   //
        || !GPIO_IS_VALID_GPIO(rx)       //
