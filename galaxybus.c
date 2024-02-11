@@ -13,7 +13,8 @@
 
 #define MASTER 0x11
 
-struct galaxybus_s {
+struct galaxybus_s
+{
    int8_t timer;                // Which timer
    int8_t tx;                   // Tx pin
    int8_t rx;                   // Rx pin (can be same as tx)
@@ -40,13 +41,13 @@ struct galaxybus_s {
    uint8_t subbit;              // Sub bit count
    uint8_t bit;                 // Bit count
    uint8_t shift;               // Byte
-    uint8_t:0;                  //      Bits set from int
+     uint8_t:0;                 //      Bits set from int
    uint8_t txrx:1;              // Mode, true for rx , false for tx //Tx
    uint8_t rxignore:1;          // This message is not for us so being ignored
    uint8_t rxwait:1;            // Expecting message
    uint8_t tick:2;              // clk tick
    uint8_t rxbrk:1;             // rx break condition
-    uint8_t:0;                  //      Bits set from non int
+     uint8_t:0;                 //      Bits set from non int
    uint8_t started:1;           // Int handler started
    uint8_t txhold:1;            // We are in app Tx call and need to hold of sending as copying to buffer
    uint8_t slave:1;             // Slave
@@ -72,7 +73,8 @@ static const char *const galaxybus_err_str[GALAXYBUS_ERR_MAX + 1] = {
 #define rs485_mode_rx(g) do{if ((g)->tx == (g)->rx)gpio_in((g)->rx);gpio_clr((g)->de);(g)->rxerr = 0;(g)->gap = (g)->rxpre;(g)->txrx = 1;(g)->rxwait=1;}while(0)
 #define rs485_mode_tx(g) do{gpio_set((g)->de);if ((g)->tx == (g)->rx)gpio_out((g)->rx);(g)->gap = (g)->txpre;(g)->txrx = 0;}while(0)
 
-bool IRAM_ATTR timer_isr(void *gp)
+bool IRAM_ATTR
+timer_isr (void *gp)
 {
    galaxybus_t *g = gp;
    if (g->clk >= 0)
@@ -80,13 +82,13 @@ bool IRAM_ATTR timer_isr(void *gp)
       if (g->tick++ == 2)
          g->tick = 0;
       if (g->tick == 0 || (g->tick == 1 && g->txrx))
-         gpio_clr(g->clk);
+         gpio_clr (g->clk);
       else
-         gpio_set(g->clk);
+         gpio_set (g->clk);
    }
    if (g->txrx)
    {                            // Rx
-      uint8_t v = gpio_get(g->rx);
+      uint8_t v = gpio_get (g->rx);
       if (v && g->rxbrk)
          g->rxbrk = 0;          // Not a break condition
       if (!v && !g->bit)
@@ -119,7 +121,7 @@ bool IRAM_ATTR timer_isr(void *gp)
                g->rxlen = g->rxpos;
                g->rxerrorreport = g->rxerr;
                g->rxseq++;
-               rs485_mode_tx(g);        // Reply or next poll - for slave, needs pre-loading tx or quick (TODO loading with default response if not ready)
+               rs485_mode_tx (g);       // Reply or next poll - for slave, needs pre-loading tx or quick (TODO loading with default response if not ready)
             } else if (!g->slave)
             {
                if (g->rxwait)
@@ -128,7 +130,7 @@ bool IRAM_ATTR timer_isr(void *gp)
                   g->rxerrorreport = GALAXYBUS_ERR_TIMEOUT;
                   g->rxseq++;
                }
-               rs485_mode_tx(g);
+               rs485_mode_tx (g);
             }
             g->rxwait = 0;
             g->rxpos = 0;       // ready for next message
@@ -203,7 +205,7 @@ bool IRAM_ATTR timer_isr(void *gp)
          if (g->txpos)
          {                      // End of message
             g->txpos = 0;
-            rs485_mode_rx(g);   // Switch back to rx
+            rs485_mode_rx (g);  // Switch back to rx
             return false;
          }
          // Start of message
@@ -238,28 +240,29 @@ bool IRAM_ATTR timer_isr(void *gp)
       }
    }
    if (t)
-      gpio_set(g->tx);
+      gpio_set (g->tx);
    else
-      gpio_clr(g->tx);
+      gpio_clr (g->tx);
    return false;
 }
 
 // Set up
-galaxybus_t *galaxybus_init(int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t clk, uint8_t slave)
+galaxybus_t *
+galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t clk, uint8_t slave)
 {
    if (timer < 0 || tx < 0 || rx < 0 || de < 0 || tx == de || rx == de || tx == re || rx == re)
       return NULL;
-   if (!GPIO_IS_VALID_OUTPUT_GPIO(tx)   //
-       || !GPIO_IS_VALID_GPIO(rx)       //
-       || !GPIO_IS_VALID_OUTPUT_GPIO(de)        //
-       || (re >= 0 && !GPIO_IS_VALID_OUTPUT_GPIO(re))   //
-       || (clk >= 0 && !GPIO_IS_VALID_OUTPUT_GPIO(clk)) //
-       )
+   if (!GPIO_IS_VALID_OUTPUT_GPIO (tx)  //
+       || !GPIO_IS_VALID_GPIO (rx)      //
+       || !GPIO_IS_VALID_OUTPUT_GPIO (de)       //
+       || (re >= 0 && !GPIO_IS_VALID_OUTPUT_GPIO (re))  //
+       || (clk >= 0 && !GPIO_IS_VALID_OUTPUT_GPIO (clk))        //
+      )
       return NULL;
-   galaxybus_t *g = malloc(sizeof(*g));
+   galaxybus_t *g = malloc (sizeof (*g));
    if (!g)
       return g;
-   memset(g, 0, sizeof(*g));
+   memset (g, 0, sizeof (*g));
    g->txpre = 10;               // defaults
    g->txpost = 10;
    g->rxpre = 50;
@@ -275,7 +278,8 @@ galaxybus_t *galaxybus_init(int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_
    return g;
 }
 
-void galaxybus_set_timing(galaxybus_t * g, uint8_t txpre, uint8_t txpost, uint8_t rxpre, uint8_t rxpost)
+void
+galaxybus_set_timing (galaxybus_t * g, uint8_t txpre, uint8_t txpost, uint8_t rxpre, uint8_t rxpost)
 {
    if (txpre)
       g->txpre = txpre;
@@ -287,32 +291,33 @@ void galaxybus_set_timing(galaxybus_t * g, uint8_t txpre, uint8_t txpost, uint8_
       g->rxpost = rxpost;
 }
 
-void galaxybus_start(galaxybus_t * g)
+void
+galaxybus_start (galaxybus_t * g)
 {
    g->started = 1;
    // Tx
-   gpio_reset_pin(g->tx);
-   gpio_set(g->tx);
-   gpio_set_direction(g->tx, GPIO_MODE_OUTPUT);
+   gpio_reset_pin (g->tx);
+   gpio_set (g->tx);
+   gpio_set_direction (g->tx, GPIO_MODE_OUTPUT);
    // DE
-   gpio_reset_pin(g->de);
-   gpio_clr(g->de);
-   gpio_set_direction(g->de, GPIO_MODE_OUTPUT);
+   gpio_reset_pin (g->de);
+   gpio_clr (g->de);
+   gpio_set_direction (g->de, GPIO_MODE_OUTPUT);
    if (g->de != g->re && g->re >= 0)
    {                            // If RE is separate, set RE permanently
-      gpio_reset_pin(g->re);
-      gpio_clr(g->re);
-      gpio_set_direction(g->re, GPIO_MODE_OUTPUT);
+      gpio_reset_pin (g->re);
+      gpio_clr (g->re);
+      gpio_set_direction (g->re, GPIO_MODE_OUTPUT);
    }
    if (g->clk >= 0)
    {                            // Option clock output
-      gpio_reset_pin(g->clk);
-      gpio_set_direction(g->clk, GPIO_MODE_OUTPUT);
+      gpio_reset_pin (g->clk);
+      gpio_set_direction (g->clk, GPIO_MODE_OUTPUT);
    }
    if (g->tx != g->rx)
    {                            // If Tx and Rx separate, then set Rx input
-      gpio_reset_pin(g->rx);
-      gpio_set_direction(g->rx, GPIO_MODE_INPUT);
+      gpio_reset_pin (g->rx);
+      gpio_set_direction (g->rx, GPIO_MODE_INPUT);
    }
    // Set up timer
    timer_config_t config = {
@@ -324,30 +329,33 @@ void galaxybus_start(galaxybus_t * g)
       .auto_reload = 1,
       .clk_src = TIMER_SRC_CLK_DEFAULT,
    };
-   rs485_mode_rx(g);
-   timer_init(0, g->timer, &config);
-   timer_set_counter_value(0, g->timer, 0x00000000ULL);
-   timer_set_alarm_value(0, g->timer, TIMER_SCALE / 9600 / 3);
-   timer_isr_callback_add(0, g->timer, timer_isr, g, ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_IRAM);
-   timer_enable_intr(0, g->timer);
-   timer_start(0, g->timer);
+   rs485_mode_rx (g);
+   timer_init (0, g->timer, &config);
+   timer_set_counter_value (0, g->timer, 0x00000000ULL);
+   timer_set_alarm_value (0, g->timer, TIMER_SCALE / 9600 / 3);
+   timer_isr_callback_add (0, g->timer, timer_isr, g, ESP_INTR_FLAG_LOWMED | ESP_INTR_FLAG_IRAM);
+   timer_enable_intr (0, g->timer);
+   timer_start (0, g->timer);
 }
 
-void *galaxybus_end(galaxybus_t * g)
+void *
+galaxybus_end (galaxybus_t * g)
 {
    if (g)
    {
       if (g->started)
       {
-         timer_disable_intr(0, g->timer);
+         //timer_disable_intr(0, g->timer);     // Actuaklly crashes!
+         timer_pause (0, g->timer);
       }
-      free(g);
+      free (g);
    }
    return NULL;
 }
 
 // Low level messaging
-int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
+int
+galaxybus_tx (galaxybus_t * g, int len, uint8_t * data)
 {
    if (len >= GALAXYBUSMAX)
       return -GALAXYBUS_ERR_TOOBIG;
@@ -357,7 +365,7 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
    int try = 0;
    while (g->txpos || g->txlen)
    {
-      usleep(1000);
+      usleep (1000);
       if (try++ > 1000)
          break;                 // Should not take this long
    }
@@ -386,14 +394,16 @@ int galaxybus_tx(galaxybus_t * g, int len, uint8_t * data)
    return len;
 }
 
-int galaxybus_ready(galaxybus_t * g)
+int
+galaxybus_ready (galaxybus_t * g)
 {
    if (g->rxdue == g->rxseq)
       return 0;                 // Nothing ready
    return 1;
 }
 
-int galaxybus_rx(galaxybus_t * g, int max, uint8_t * data)
+int
+galaxybus_rx (galaxybus_t * g, int max, uint8_t * data)
 {
    if (g->rxdue == g->rxseq)
    {
@@ -421,7 +431,8 @@ int galaxybus_rx(galaxybus_t * g, int max, uint8_t * data)
    return p;
 }
 
-const char *galaxybus_err_to_name(int e)
+const char *
+galaxybus_err_to_name (int e)
 {
    if (e < 0)
       e = 0 - e;
