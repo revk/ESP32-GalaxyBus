@@ -259,7 +259,7 @@ galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t
        || (clk >= 0 && !GPIO_IS_VALID_OUTPUT_GPIO (clk))        //
       )
       return NULL;
-   galaxybus_t *g = malloc (sizeof (*g));
+   galaxybus_t *g = heap_caps_malloc (sizeof (*g),MALLOC_CAP_INTERNAL);
    if (!g)
       return g;
    memset (g, 0, sizeof (*g));
@@ -348,7 +348,7 @@ galaxybus_end (galaxybus_t * g)
          //timer_disable_intr(0, g->timer);     // Actuaklly crashes!
          timer_pause (0, g->timer);
       }
-      free (g);
+      heap_caps_free (g);
    }
    return NULL;
 }
