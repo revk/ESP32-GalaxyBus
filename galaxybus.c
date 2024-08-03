@@ -259,10 +259,9 @@ galaxybus_init (int8_t timer, int8_t tx, int8_t rx, int8_t de, int8_t re, int8_t
        || (clk >= 0 && !GPIO_IS_VALID_OUTPUT_GPIO (clk))        //
       )
       return NULL;
-   galaxybus_t *g = heap_caps_malloc (sizeof (*g),MALLOC_CAP_INTERNAL);
+   galaxybus_t *g = heap_caps_calloc (1,sizeof (*g),MALLOC_CAP_IRAM_8BIT);
    if (!g)
       return g;
-   memset (g, 0, sizeof (*g));
    g->txpre = 10;               // defaults
    g->txpost = 10;
    g->rxpre = 50;
